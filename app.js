@@ -249,7 +249,7 @@
       '<h4>Payment terms</h4><p>' + esc(doc.paymentTerms || '-') + '</p>' +
       '<div class="d-price"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><b>FIXED PRICE</b><span class="amt">' + money(p.amount) + (p.gstRegistered ? ' <small>incl GST</small>' : '') + '</span></div>' +
       (p.gstRegistered ? '<div class="small">Price excluding GST ' + money(p.exGst) + ' · GST (15%) ' + money(p.gst) + '</div>' : '') + '<div class="small">' + esc(p.gstLine) + '</div></div>' +
-      '<h4>Acceptance</h4>' + (a ? '<p><b>Accepted by:</b> ' + esc(a.name) + '<br><b>Date and time:</b> ' + esc(a.atLabel) + '<br><span class="small">Ticked: "' + esc(a.statement) + '"</span><br><span class="small" style="word-break:break-all">Record fingerprint (SHA-256): ' + esc(a.hash) + '</span></p>' : '<p>Not yet accepted.</p>') +
+      '<h4>Acceptance</h4>' + (a ? (a.signature ? '<img class="d-sig" alt="Client signature" src="' + esc(a.signature) + '">' : '') + '<p><b>Accepted by:</b> ' + esc(a.name) + '<br><b>Date and time:</b> ' + esc(a.atLabel) + '<br><span class="small">Ticked: "' + esc(a.statement) + '"</span><br><span class="small" style="word-break:break-all">Record fingerprint (SHA-256): ' + esc(a.hash) + '</span></p>' : '<p>Not yet accepted.</p>') +
       '<div class="d-foot">This is a quote, not a tax invoice.</div>';
   }
 
@@ -352,11 +352,37 @@
     $('accName').value = ''; $('accAgree').checked = false; $('btnAccept').disabled = true;
     $('accAgreeText').textContent = ACCEPT_STATEMENT;
     $('acceptForm').hidden = false; $('acceptDone').hidden = true;
-    $('clientOverlay').hidden = false; document.body.style.overflow = 'hidden';
+    $('clientOverlay').hidden = false; document.body.style.overflow = 'hidden'; sigSetup();
     $('clientOverlay').querySelector('.overlay-body').scrollTop = 0;
   }
+  // ---- signature pad ----
+  var sig = { has: false, drawing: false, ctx: null };
+  function sigSetup() {
+    var cv = $('sigPad'); var r = cv.getBoundingClientRect(); var dpr = Math.max(1, window.devicePixelRatio || 1);
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#10223f';
+    ctx.clearRect(0, 0, r.width, r.height);
+    sig.ctx = ctx; sig.has = false; sig.drawing = false; updateAcceptBtn();
+  }
+  function sigPos(e) { var r = $('sigPad').getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  function sigBind() {
+    var cv = $('sigPad');
+    cv.addEventListener('pointerdown', function (e) { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} sig.drawing = true; var p = sigPos(e); sig.ctx.beginPath(); sig.ctx.moveTo(p.x, p.y); sig.ctx.lineTo(p.x + 0.1, p.y + 0.1); sig.ctx.stroke(); sig.last = p; sig.len = 0; });
+    cv.addEventListener('pointermove', function (e) { if (!sig.drawing) return; e.preventDefault(); var p = sigPos(e); sig.ctx.beginPath(); sig.ctx.moveTo(sig.last.x, sig.last.y); sig.ctx.lineTo(p.x, p.y); sig.ctx.stroke(); sig.len += Math.hypot(p.x - sig.last.x, p.y - sig.last.y); sig.last = p; if (sig.len > 25 && !sig.has) { sig.has = true; updateAcceptBtn(); } });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { cv.addEventListener(ev, function () { sig.drawing = false; }); });
+    $('btnSigClear').addEventListener('click', function () { sigSetup(); });
+  }
+  function sigImage() {
+    // white background, trimmed-size PNG for the record and PDF
+    var src = $('sigPad'); var out = document.createElement('canvas'); out.width = src.width; out.height = src.height;
+    var c = out.getContext('2d'); c.fillStyle = '#ffffff'; c.fillRect(0, 0, out.width, out.height); c.drawImage(src, 0, 0);
+    var scale = Math.min(1, 600 / out.width); var o2 = document.createElement('canvas'); o2.width = Math.round(out.width * scale); o2.height = Math.round(out.height * scale);
+    var c2 = o2.getContext('2d'); c2.drawImage(out, 0, 0, o2.width, o2.height);
+    return o2.toDataURL('image/png');
+  }
   function closeClient() { $('clientOverlay').hidden = true; document.body.style.overflow = ''; }
-  function updateAcceptBtn() { $('btnAccept').disabled = !($('accName').value.trim().length >= 2 && $('accAgree').checked); }
+  function updateAcceptBtn() { $('btnAccept').disabled = !($('accName').value.trim().length >= 2 && $('accAgree').checked && sig.has); }
   function doAccept() {
     var rec = findRecord(draft.ref);
     if (!rec || rec.status === 'accepted') { toast('Nothing to accept'); return; }
@@ -364,10 +390,11 @@
     var now = new Date();
     var doc = clone(rec.doc);
     // refresh with the exact content the client is looking at
-    var base = JSON.stringify(doc) + '|' + name + '|' + now.toISOString() + '|' + ACCEPT_STATEMENT;
+    var signature = sigImage();
+    var base = JSON.stringify(doc) + '|' + name + '|' + now.toISOString() + '|' + ACCEPT_STATEMENT + '|' + signature;
     $('btnAccept').disabled = true;
     sha256Hex(base).then(function (hash) {
-      doc.acceptance = { name: name, at: now.toISOString(), atLabel: dateTimeLabel(now), statement: ACCEPT_STATEMENT, hash: hash, device: navigator.userAgent };
+      doc.acceptance = { name: name, at: now.toISOString(), atLabel: dateTimeLabel(now), statement: ACCEPT_STATEMENT, signature: signature, hash: hash, device: navigator.userAgent };
       rec.doc = doc; rec.status = 'accepted'; rec.acceptedAt = now.toISOString(); rec.updatedAt = now.toISOString();
       rec.internal = internalSnapshot();
       if (!persistRecords()) { toast('Could not save acceptance!'); return; }
@@ -608,6 +635,7 @@
     $('accName').addEventListener('input', updateAcceptBtn);
     $('accAgree').addEventListener('change', updateAcceptBtn);
     $('btnAccept').addEventListener('click', doAccept);
+    sigBind();
     // saved / record
     $('btnNewQuote').addEventListener('click', function () { draft = newDraft(); saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc(); go('measure'); toast('New quote ' + draft.ref); });
     $('recShare').addEventListener('click', function () { var r = currentRecord(); if (r) shareDoc(r.doc, $('recHelp')); });

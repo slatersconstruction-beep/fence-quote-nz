@@ -302,6 +302,10 @@
     <div class="card accept-card" id="acceptForm">
       <h2>Accept this quote</h2>
       <label class="field">Your full name<input id="accName" type="text" autocomplete="name"></label>
+      <div class="field">Sign with your finger
+        <div class="sig-wrap"><canvas id="sigPad" aria-label="Signature pad"></canvas><span class="sig-line">✕</span></div>
+        <button type="button" class="link-btn" id="btnSigClear">Clear signature</button>
+      </div>
       <label class="field check"><input id="accAgree" type="checkbox"> <span id="accAgreeText"></span></label>
       <button class="btn accept block" id="btnAccept" type="button" disabled>Accept quote</button>
     </div>

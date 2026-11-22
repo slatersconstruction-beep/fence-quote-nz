@@ -116,11 +116,15 @@
     y += boxH + 4;
 
     // ---------- Acceptance ----------
+    ensure(acc ? (acc.signature ? 62 : 36) : 34);
     heading('Acceptance');
     if (acc) {
+      if (acc.signature) {
+        try { ensure(26); var props = pdf.getImageProperties(acc.signature); var sw = 60, sh = Math.min(24, sw * props.height / props.width); pdf.addImage(acc.signature, 'PNG', M, y, sw * (sh / (sw * props.height / props.width)), sh); y += sh + 1; pdf.setDrawColor(150, 150, 150); pdf.line(M, y, M + 70, y); y += 3; text('Signature of ' + acc.name, { size: 8, color: [93, 102, 95], after: 1 }); } catch (e) {}
+      }
       text('Accepted by: ' + acc.name, { bold: true, after: 0.5 });
       text('Date and time: ' + acc.atLabel + ' (' + acc.at + ')', { after: 0.5 });
-      text('Accepted on the contractor\'s device by ticking: "' + acc.statement + '"', { size: 9, after: 0.5 });
+      text('Accepted on the contractor\'s device by ' + (acc.signature ? 'signing above and ' : '') + 'ticking: "' + acc.statement + '"', { size: 9, after: 0.5 });
       text('Record fingerprint (SHA-256): ' + acc.hash, { size: 8, color: [93, 102, 95] });
     } else {
       text('To accept, reply to ' + (b.contactPerson || b.tradingName) + ' confirming you accept quote ' + doc.ref + ', or sign below.', { after: 3 });

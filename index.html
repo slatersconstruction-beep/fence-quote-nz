@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fence Quote NZ</title>
+<meta name="description" content="Quote timber paling fences onsite: takeoff, client quote, acceptance and PDF.">
+<meta name="theme-color" content="#1f5130">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Fence Quote">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo" aria-hidden="true">▥</span> Fence Quote NZ</div>
+  <div class="topbar-right"><span id="refBadge" class="ref-badge"></span></div>
+</header>
+
+<main id="app">
+  <!-- ================= MEASURE ================= -->
+  <section id="view-measure" class="view active" aria-label="Measure and price">
+    <div class="card hero">
+      <div class="grid2">
+        <label class="big-input">Fence length <span class="unit">m</span>
+          <input id="inLength" type="number" inputmode="decimal" step="0.1" min="0" placeholder="12">
+        </label>
+        <label class="big-input">Finished height <span class="unit">m</span>
+          <input id="inHeight" type="number" inputmode="decimal" step="0.05" min="0" placeholder="1.8">
+        </label>
+      </div>
+      <label class="field">Paling
+        <select id="selPaling"></select>
+      </label>
+      <p class="muted small">One straight run, level ground. Height = top of palings above ground.</p>
+    </div>
+
+    <div id="takeoffErrors"></div>
+    <div id="takeoffWarnings"></div>
+
+    <div class="card">
+      <div class="card-head"><h2>Materials takeoff</h2><span id="matTotal" class="pill strong"></span></div>
+      <div id="takeoffSummary" class="summary-row"></div>
+      <div id="takeoffLines"></div>
+      <p class="muted small" id="priceBasisNote"></p>
+    </div>
+
+    <details class="card" id="optsCard">
+      <summary><h2>Estimating options</h2><span class="muted small">centres, embedment, holes, rails, clearance, waste</span></summary>
+      <div class="grid2">
+        <label class="field">Max post centres (m)<input id="optMaxCentres" type="number" inputmode="decimal" step="0.1" min="0.5"></label>
+        <label class="field">Embedment (m)<input id="optEmbedment" type="number" inputmode="decimal" step="0.05" min="0.1"></label>
+        <label class="field">Hole diameter (mm)<input id="optHoleDia" type="number" inputmode="numeric" step="10" min="100"></label>
+        <label class="field">Rail rows<select id="optRailRows"><option value="auto">Auto (2 ≤1.2 m, else 3)</option><option>2</option><option>3</option><option>4</option></select></label>
+        <label class="field">Paling ground clearance (mm)<input id="optClearance" type="number" inputmode="numeric" step="5" min="0"></label>
+        <label class="field">Paling gap (+) / overlap (−) (mm)<input id="optGap" type="number" inputmode="numeric" step="1"></label>
+        <label class="field">Paling waste (%)<input id="optWaste" type="number" inputmode="numeric" step="1" min="0"></label>
+        <label class="field">Fixings waste (%)<input id="optFixWaste" type="number" inputmode="numeric" step="1" min="0"></label>
+        <label class="field">Rail stock<select id="optRail"></select></label>
+        <label class="field">Nails per paling per rail<input id="optNailsPer" type="number" inputmode="numeric" step="1" min="1"></label>
+      </div>
+      <h3>Site conditions</h3>
+      <div class="grid2">
+        <label class="field">Wind exposure<select id="optExposure"><option value="sheltered">Sheltered</option><option value="normal">Normal</option><option value="high">High / exposed</option></select></label>
+        <label class="field">Ground<select id="optGround"><option value="firm">Firm natural ground</option><option value="soft">Soft / fill / wet</option><option value="rock">Rock / hard</option></select></label>
+        <label class="field">Special use<select id="optSpecial"><option value="none">None (boundary fence)</option><option value="pool">Pool barrier</option><option value="retaining">On / acts as retaining</option><option value="other">Other (acoustic, fire, drop)</option></select></label>
+        <label class="field check"><input id="optFront" type="checkbox"> Front yard / road boundary</label>
+      </div>
+      <button class="btn ghost small" id="btnResetOpts" type="button">Reset options to defaults</button>
+    </details>
+
+    <div class="card rules-mini">
+      <h2>Rules vs assumptions</h2>
+      <p class="small"><span class="tag consent">Consent / planning rule</span> legal requirements with sources. <span class="tag design">Estimating assumption</span> my rules of thumb, adjustable.</p>
+      <button class="btn ghost small" type="button" data-goto="settings" data-settab="rules">Open rules &amp; sources</button>
+    </div>
+    <div class="sticky-cta"><button class="btn primary block" type="button" data-goto="quote">Next: build quote →</button></div>
+  </section>
+
+  <!-- ================= QUOTE ================= -->
+  <section id="view-quote" class="view" aria-label="Quote">
+    <div class="card">
+      <div class="card-head"><h2>Materials</h2><span id="qMaterials" class="pill"></span></div>
+      <p class="small muted" id="qMaterialsBasis"></p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Labour <span class="muted small">one line per person</span></h2><span id="qLabourTotal" class="pill"></span></div>
+      <div id="labourList"></div>
+      <button class="btn ghost" id="btnAddPerson" type="button">+ Add person</button>
+      <p class="small muted" id="labourBasis"></p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Extras</h2><span id="qExtrasTotal" class="pill"></span></div>
+      <div id="extrasList"></div>
+      <button class="btn ghost" id="btnAddExtra" type="button">+ Add extra</button>
+      <div class="grid2 mt">
+        <label class="field">Margin (% on cost)<input id="inMargin" type="number" inputmode="decimal" step="1" min="0"></label>
+        <label class="field">Round client price up to<select id="inRound"><option value="0">No rounding</option><option value="1">Nearest $1</option><option value="10">Nearest $10</option><option value="50">Nearest $50</option></select></label>
+      </div>
+    </div>
+
+    <div class="card private">
+      <div class="card-head"><h2>Pricing (private)</h2><span class="tag private-tag">Only you see this</span></div>
+      <div id="pricingTable"></div>
+    </div>
+
+    <div class="card">
+      <h2>Client &amp; job</h2>
+      <label class="field">Client name<input id="cName" type="text" autocomplete="off" placeholder="e.g. Jane Smith"></label>
+      <label class="field">Job address<input id="cAddress" type="text" autocomplete="off" placeholder="Street, suburb, city"></label>
+      <div class="grid2">
+        <label class="field">Client phone (optional)<input id="cPhone" type="tel" autocomplete="off"></label>
+        <label class="field">Client email (optional)<input id="cEmail" type="email" autocomplete="off"></label>
+      </div>
+      <div class="grid3">
+        <label class="field">Quote ref<input id="qRef" type="text"></label>
+        <label class="field">Issue date<input id="qIssue" type="date"></label>
+        <label class="field">Valid until<input id="qExpiry" type="date"></label>
+      </div>
+      <label class="field">Scope of works <button type="button" class="link-btn" id="btnRegenScope">↻ Rebuild from takeoff</button>
+        <textarea id="qScope" rows="7"></textarea></label>
+      <label class="field">Exclusions (one per line)<textarea id="qExclusions" rows="6"></textarea></label>
+      <label class="field">Payment terms<textarea id="qTerms" rows="3"></textarea></label>
+    </div>
+    <div class="sticky-cta"><button class="btn primary block" type="button" data-goto="send">Next: preview &amp; send →</button></div>
+  </section>
+
+  <!-- ================= SEND ================= -->
+  <section id="view-send" class="view" aria-label="Preview and send">
+    <div id="sendProblems"></div>
+    <div class="card actions-card">
+      <div id="docStatus" class="status-banner"></div>
+      <div class="btn-col">
+        <button class="btn primary block" id="btnShare" type="button">📤 Share PDF (WhatsApp, Mail, Gmail…)</button>
+        <button class="btn block" id="btnDownload" type="button">⬇️ Download PDF</button>
+        <button class="btn block" id="btnOpenPdf" type="button">👁 Open PDF to check</button>
+        <button class="btn block" id="btnEmailDraft" type="button">✉️ Email draft (no attachment)</button>
+        <button class="btn accept block" id="btnClientAccept" type="button">✍️ Client review &amp; accept on this phone</button>
+      </div>
+      <div id="shareHelp" class="small"></div>
+      <details class="small mt"><summary>How sending works</summary>
+        <ul>
+          <li><b>WhatsApp:</b> tap <i>Share PDF</i> → WhatsApp → pick the contact → Send. The PDF arrives as a document. If Share is not offered, tap <i>Download PDF</i>, then in WhatsApp open the chat → + (iPhone) or 📎 (Android) → Document → pick the file from Downloads/Files.</li>
+          <li><b>Email:</b> tap <i>Share PDF</i> → Mail or Gmail. A draft opens <b>with the PDF already attached</b>; add the client's address, check it and tap Send yourself. <i>Email draft (no attachment)</i> only opens a pre-written message: you must attach the downloaded PDF yourself.</li>
+          <li>Clients just open the PDF. No account or link to this app is needed.</li>
+        </ul>
+      </details>
+    </div>
+    <div class="card doc-wrap"><div id="docPreview" class="doc"></div></div>
+  </section>
+
+  <!-- ================= SAVED ================= -->
+  <section id="view-saved" class="view" aria-label="Saved quotes">
+    <div class="card">
+      <div class="card-head"><h2>Saved quotes</h2><button class="btn small primary" id="btnNewQuote" type="button">+ New quote</button></div>
+      <div id="savedList"></div>
+      <p class="small muted">Saved on this phone, in this browser only. See Settings → Data &amp; devices.</p>
+    </div>
+  </section>
+
+  <!-- ================= RECORD VIEW ================= -->
+  <section id="view-record" class="view" aria-label="Saved quote">
+    <div class="card actions-card">
+      <button class="btn ghost small" type="button" data-goto="saved">← Saved quotes</button>
+      <div id="recStatus" class="status-banner"></div>
+      <div class="btn-col">
+        <button class="btn primary block" id="recShare" type="button">📤 Share PDF (WhatsApp, Mail, Gmail…)</button>
+        <button class="btn block" id="recDownload" type="button">⬇️ Download PDF</button>
+        <button class="btn block" id="recOpenPdf" type="button">👁 Open PDF to check</button>
+        <button class="btn block" id="recEmailDraft" type="button">✉️ Email draft (no attachment)</button>
+        <button class="btn block" id="recEdit" type="button">✏️ Edit this quote</button>
+        <button class="btn block" id="recDuplicate" type="button">⧉ Copy into a new quote</button>
+        <button class="btn danger block" id="recDelete" type="button">🗑 Delete record</button>
+      </div>
+      <div id="recHelp" class="small"></div>
+    </div>
+    <div class="card doc-wrap"><div id="recPreview" class="doc"></div></div>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section id="view-settings" class="view" aria-label="Settings">
+    <div class="seg" role="tablist">
+      <button type="button" class="seg-btn active" data-settab="profile">Business</button>
+      <button type="button" class="seg-btn" data-settab="prices">Prices</button>
+      <button type="button" class="seg-btn" data-settab="palings">Palings</button>
+      <button type="button" class="seg-btn" data-settab="rules">Rules</button>
+      <button type="button" class="seg-btn" data-settab="data">Data</button>
+    </div>
+
+    <div class="settab active" id="set-profile">
+      <div class="card">
+        <h2>Business profile</h2>
+        <p class="small muted">Saved on this phone and used on every new quote. Changing it never changes accepted quotes.</p>
+        <label class="field">Trading name<input id="pTrading" type="text"></label>
+        <label class="field">Legal entity name (if different)<input id="pLegal" type="text" placeholder="e.g. Slaters Construction Limited"></label>
+        <label class="field">Contact person<input id="pContact" type="text"></label>
+        <div class="grid2">
+          <label class="field">Business phone<input id="pPhone" type="tel"></label>
+          <label class="field">Email<input id="pEmail" type="email"></label>
+        </div>
+        <label class="field">Business or postal address<textarea id="pAddress" rows="2"></textarea></label>
+        <label class="field check"><input id="pGstReg" type="checkbox"> GST registered</label>
+        <div class="grid2">
+          <label class="field">GST number (optional)<input id="pGstNo" type="text" inputmode="numeric" placeholder="123-456-789"></label>
+          <label class="field">NZBN (optional)<input id="pNzbn" type="text" inputmode="numeric" placeholder="94290…"></label>
+        </div>
+        <div class="grid2">
+          <label class="field">Quote ref prefix<input id="pPrefix" type="text"></label>
+          <label class="field">Quote valid for (days)<input id="pValidity" type="number" inputmode="numeric" min="1"></label>
+        </div>
+        <label class="field">Default payment terms<textarea id="pTerms" rows="3"></textarea></label>
+        <label class="field">Default exclusions (one per line)<textarea id="pExclusions" rows="6"></textarea></label>
+        <button class="btn primary block" id="btnSaveProfile" type="button">Save business profile</button>
+        <p id="profileSaved" class="small ok-text"></p>
+      </div>
+    </div>
+
+    <div class="settab" id="set-prices">
+      <div class="card">
+        <h2>Unit prices</h2>
+        <p class="small" id="priceIntro"></p>
+        <div id="priceList"></div>
+        <button class="btn ghost small" id="btnResetPrices" type="button">Reset all to researched prices</button>
+      </div>
+    </div>
+
+    <div class="settab" id="set-palings">
+      <div class="card">
+        <h2>Paling options</h2>
+        <div id="palingList"></div>
+      </div>
+      <div class="card">
+        <h3>Add a paling</h3>
+        <div class="grid2">
+          <label class="field">Name<input id="npName" type="text" placeholder="150 × 25 × 2100 H3.2"></label>
+          <label class="field">Length (mm)<input id="npLen" type="number" inputmode="numeric" placeholder="2100"></label>
+          <label class="field">Width (mm)<input id="npWidth" type="number" inputmode="numeric" value="150"></label>
+          <label class="field">Price each incl GST ($)<input id="npPrice" type="number" inputmode="decimal" step="0.01"></label>
+          <label class="field">Supplier / item no.<input id="npItem" type="text"></label>
+          <label class="field">Product link<input id="npUrl" type="url"></label>
+        </div>
+        <button class="btn primary" id="btnAddPaling" type="button">Add paling</button>
+      </div>
+      <div class="card">
+        <h3>Import palings from CSV</h3>
+        <p class="small">Header row: <code>name,length_mm,width_mm,price,item,url</code>. Prices each, incl GST.</p>
+        <textarea id="csvText" rows="4" placeholder="name,length_mm,width_mm,price,item,url&#10;150x25x2100 H3.2,2100,150,7.81,0308570,https://..."></textarea>
+        <div class="row-gap"><input id="csvFile" type="file" accept=".csv,text/csv,text/plain"><button class="btn" id="btnImportCsv" type="button">Import CSV</button></div>
+        <p id="csvResult" class="small"></p>
+      </div>
+    </div>
+
+    <div class="settab" id="set-rules">
+      <div class="card"><h2>Consent &amp; planning rules</h2><p class="small">Legal requirements. Always check the specific site; this is a summary, not legal advice.</p><div id="rulesList"></div></div>
+      <div class="card"><h2>Estimating assumptions</h2><p class="small">My trade rules of thumb used for the takeoff. They are <b>not</b> Building Code requirements.</p><ul id="assumptionList" class="small"></ul></div>
+      <div class="card"><h2>When to get a site-specific design</h2>
+        <ul class="small">
+          <li>Over 2.5 m high (also needs building consent).</li>
+          <li>High wind exposure, coastal cliff-tops, open rural sites.</li>
+          <li>Soft, filled, wet or sloping ground; rock.</li>
+          <li>Pool barriers, fences on retaining walls, fences at a fall/drop, acoustic or fire walls.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="settab" id="set-data">
+      <div class="card">
+        <h2>Data &amp; devices</h2>
+        <div id="storageInfo" class="small"></div>
+        <ul class="small">
+          <li>Quotes, accepted records, your business profile and price overrides are stored <b>only on this phone, inside this browser</b> (browser local storage). Nothing is uploaded to a server; the website only delivers the app.</li>
+          <li>Safari and the Home Screen app keep <b>separate</b> storage on iPhone. Pick one and stick with it (Home Screen is recommended).</li>
+          <li>Switching phones or browsers: tap <b>Export backup</b>, keep the file (e.g. email it to yourself or save to Drive/iCloud), then <b>Import backup</b> on the new phone.</li>
+          <li>Clearing website data, uninstalling the browser, or iOS removing data from an unused site will delete records. Export a backup regularly; also keep the accepted PDFs you send.</li>
+        </ul>
+        <div class="btn-col">
+          <button class="btn block" id="btnExport" type="button">⬇️ Export backup (.json)</button>
+          <button class="btn block" id="btnShareBackup" type="button">📤 Share backup file</button>
+          <label class="btn block file-btn">⬆️ Import backup<input id="importFile" type="file" accept="application/json,.json"></label>
+        </div>
+        <p id="dataResult" class="small"></p>
+      </div>
+      <div class="card"><h2>About</h2><p class="small">Fence Quote NZ <span id="appVersion"></span>. Prices checked <span id="pricesChecked"></span>.</p></div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ CLIENT ACCEPT OVERLAY ============ -->
+<div id="clientOverlay" class="overlay" hidden>
+  <div class="overlay-bar">
+    <span>Client review</span>
+    <button type="button" class="btn small ghost" id="btnCloseClient">✕ Back to tradie view</button>
+  </div>
+  <div class="overlay-body">
+    <div id="clientDoc" class="doc"></div>
+    <div class="card accept-card" id="acceptForm">
+      <h2>Accept this quote</h2>
+      <label class="field">Your full name<input id="accName" type="text" autocomplete="name"></label>
+      <label class="field check"><input id="accAgree" type="checkbox"> <span id="accAgreeText"></span></label>
+      <button class="btn accept block" id="btnAccept" type="button" disabled>Accept quote</button>
+    </div>
+    <div class="card" id="acceptDone" hidden></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<nav class="tabbar" aria-label="Main">
+  <button type="button" class="tab active" data-goto="measure"><span>📏</span>Measure</button>
+  <button type="button" class="tab" data-goto="quote"><span>💲</span>Quote</button>
+  <button type="button" class="tab" data-goto="send"><span>📤</span>Send</button>
+  <button type="button" class="tab" data-goto="saved"><span>🗂</span>Saved</button>
+  <button type="button" class="tab" data-goto="settings"><span>⚙️</span>Settings</button>
+</nav>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="data.js"></script>
+<script src="calc.js"></script>
+<script src="pdf.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,4 +1,6 @@
-# Fence & Deck Quote NZ
+# Karl Quotes
+
+Fence and deck quoting app (repo name `fence-quote-nz`; the web address stays the same).
 
 **Live app:** https://slatersconstruction-beep.github.io/fence-quote-nz/
 

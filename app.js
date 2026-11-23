@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '2.2.1';
+  var APP_VERSION = '2.3.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -811,7 +811,7 @@
   }
   function importBackup(text) {
     var o; try { o = JSON.parse(text); } catch (e) { return 'Not a valid backup file.'; }
-    if (!o || o.app !== 'fence-quote-nz' || !Array.isArray(o.records)) return 'This is not a Fence Quote NZ backup.';
+    if (!o || o.app !== 'fence-quote-nz' || !Array.isArray(o.records)) return 'This is not a Karl Quotes backup.';
     var added = 0, kept = 0;
     o.records.forEach(function (r) {
       var ex = records.filter(function (x) { return x.id === r.id || (x.ref === r.ref && x.status === 'accepted'); })[0];

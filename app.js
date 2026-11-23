@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.5.1';
+  var APP_VERSION = '1.6.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -629,7 +629,10 @@
   function startSession() {
     var Ctor = speechCtor(), ta = dict.target, rec;
     try { rec = new Ctor(); } catch (e) { return false; }
-    rec.lang = 'en-NZ'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+    rec.lang = 'en-NZ'; rec.interimResults = true; rec.maxAlternatives = 1;
+    // Android Chrome ignores 'continuous' (and repeats earlier words if it's on), so there we take
+    // one sentence per session and restart straight away until the tradie taps stop.
+    rec.continuous = !/Android/i.test(navigator.userAgent || '');
     rec.onresult = function (ev) {
       var interim = '';
       for (var i = ev.resultIndex; i < ev.results.length; i++) {
@@ -650,22 +653,32 @@
       if (!dict.on || dict.fatal) { finishDictation(); return; }
       // only give up if sessions keep dying instantly (broken mic/permission), not on normal pauses
       dict.short = (Date.now() - rec.__t0 < 1000) ? (dict.short || 0) + 1 : 0;
-      if (dict.short >= 5) { toast('Voice keeps stopping – tap 🎤 again, or use the 🎤 key on your keyboard'); finishDictation(); return; }
-      setTimeout(function () { if (dict.on && dict.rec === rec) { if (!startSession()) { toast('Voice stopped – tap 🎤 again to keep going'); finishDictation(); } } }, 150);
+      if (dict.short >= 5) { var b5 = dict.btn; finishDictation(); keyboardDictation(b5, 'The voice button keeps stopping on this phone.'); return; }
+      setTimeout(function () { if (dict.on && dict.rec === rec) { if (!startSession()) { var b6 = dict.btn; finishDictation(); keyboardDictation(b6, 'Voice stopped on this phone.'); } } }, 150);
     };
     try { rec.start(); } catch (e) { return false; }
     rec.__t0 = Date.now();
     dict.rec = rec;
     return true;
   }
+  function isIOS() { var ua = navigator.userAgent || ''; return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+  // iPhone: Safari's built-in voice API stops after a few seconds and can't be restarted
+  // without another tap, so use the phone's own keyboard dictation, which keeps going.
+  function keyboardDictation(btn, why) {
+    var ta = $(btn.getAttribute('data-dictate'));
+    var v = ta.value.replace(/\s+$/, '');
+    if (v && ta.value !== v + '\n') { ta.value = v + '\n'; ta.dispatchEvent(new Event('input', { bubbles: true })); }
+    try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) { ta.focus(); }
+    var help = btn.parentNode.querySelector('.dictate-help');
+    if (help) {
+      help.innerHTML = (why ? '<b>' + esc(why) + '</b><br>' : '') + 'Now tap the <b>🎤 microphone key</b> on your keyboard (Samsung: in the row along the top of the keyboard; iPhone: bottom right) and talk. It keeps listening until you tap the keyboard again or tap Done. Your words go straight into the box.';
+      help.hidden = false;
+    }
+  }
   function toggleDictation(btn) {
     if (dict.on) { var same = dict.btn === btn; stopDictation(); if (same) return; }
     var ta = $(btn.getAttribute('data-dictate'));
-    if (!speechCtor()) {
-      toast('Voice button not supported here: tap the box and use the 🎤 key on your keyboard');
-      try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
-      return;
-    }
+    if (isIOS() || !speechCtor()) { keyboardDictation(btn); return; }
     if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', btn.textContent);
     dict = { on: true, rec: null, btn: btn, target: ta, label: btn.getAttribute('data-label'), restarts: [], fatal: false };
     if (!startSession()) { finishDictation(); toast('Voice not available: use the 🎤 key on your keyboard'); return; }

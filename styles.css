@@ -215,3 +215,4 @@ input.missing, textarea.missing { border: 2px solid var(--bad) !important; backg
 @media (max-width: 560px) { .grid3 { grid-template-columns: 1fr 1fr; } .grid3 > :first-child { grid-column: 1 / -1; } }
 input[type="date"] { min-width: 0; max-width: 100%; }
 @media (max-width: 560px) { .person .grid3 { grid-template-columns: 1fr 1fr 1fr; } .person .grid3 > :first-child { grid-column: auto; } }
+.dictate-live { margin: 6px 0 0; font-style: italic; color: var(--muted); }

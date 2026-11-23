@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.5.0';
+  var APP_VERSION = '1.5.1';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -601,12 +601,21 @@
     else if (!$('clientMissing').hidden) $('clientMissing').textContent = '⚠ Please enter the ' + m.map(function (x) { return x.label; }).join(' and ') + ' before you can preview, send or get it signed.';
   }
   // ---------------- voice dictation (Web Speech API) ----------------
-  var dict = { rec: null, btn: null, target: null, label: '' };
+  // Phones end a recognition session after a short pause, so we keep restarting
+  // it until the tradie taps stop (or leaves the screen).
+  var dict = { on: false, rec: null, btn: null, target: null, label: '', restarts: [], fatal: false };
   function speechCtor() { return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
-  function stopDictation() { if (dict.rec) { try { dict.rec.stop(); } catch (e) {} } }
-  function dictationEnded() {
+  function setLive(text) { var el = dict.btn && dict.btn.parentNode.querySelector('.dictate-live'); if (el) { el.textContent = text || ''; el.hidden = !text; } }
+  function stopDictation() {
+    if (!dict.on) return;
+    dict.on = false;
+    if (dict.rec) { try { dict.rec.stop(); } catch (e) {} }
+    finishDictation();
+  }
+  function finishDictation() {
     if (dict.btn) { dict.btn.classList.remove('listening'); dict.btn.textContent = dict.label; }
-    dict.rec = null; dict.btn = null; dict.target = null;
+    setLive('');
+    dict.rec = null; dict.on = false;
   }
   function appendSpoken(ta, text) {
     text = String(text || '').trim(); if (!text) return;
@@ -617,26 +626,49 @@
     else ta.value = cur ? cur + (/[.!?:]$/.test(cur) ? ' ' : '. ') + text : text;
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   }
+  function startSession() {
+    var Ctor = speechCtor(), ta = dict.target, rec;
+    try { rec = new Ctor(); } catch (e) { return false; }
+    rec.lang = 'en-NZ'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+    rec.onresult = function (ev) {
+      var interim = '';
+      for (var i = ev.resultIndex; i < ev.results.length; i++) {
+        if (ev.results[i].isFinal) appendSpoken(ta, ev.results[i][0].transcript);
+        else interim += ev.results[i][0].transcript;
+      }
+      setLive(interim ? '“' + interim.trim() + '…”' : '');
+      dict.short = 0;
+    };
+    rec.onerror = function (ev) {
+      var fatal = { 'not-allowed': 'Microphone blocked: allow the microphone for this app in your phone settings, or use the 🎤 key on your keyboard', 'service-not-allowed': 'Voice not allowed here: use the 🎤 key on your keyboard', 'audio-capture': 'No microphone found', 'network': 'Voice needs internet – or use the 🎤 key on your keyboard', 'language-not-supported': 'Voice not available for NZ English here – use the 🎤 key on your keyboard' }[ev.error];
+      if (fatal) { dict.fatal = true; toast(fatal); }
+      // 'no-speech' and 'aborted' are normal pauses: onend restarts
+    };
+    rec.onend = function () {
+      if (dict.rec !== rec) return;
+      setLive('');
+      if (!dict.on || dict.fatal) { finishDictation(); return; }
+      // only give up if sessions keep dying instantly (broken mic/permission), not on normal pauses
+      dict.short = (Date.now() - rec.__t0 < 1000) ? (dict.short || 0) + 1 : 0;
+      if (dict.short >= 5) { toast('Voice keeps stopping – tap 🎤 again, or use the 🎤 key on your keyboard'); finishDictation(); return; }
+      setTimeout(function () { if (dict.on && dict.rec === rec) { if (!startSession()) { toast('Voice stopped – tap 🎤 again to keep going'); finishDictation(); } } }, 150);
+    };
+    try { rec.start(); } catch (e) { return false; }
+    rec.__t0 = Date.now();
+    dict.rec = rec;
+    return true;
+  }
   function toggleDictation(btn) {
-    if (dict.rec) { var same = dict.btn === btn; stopDictation(); if (same) return; }
+    if (dict.on) { var same = dict.btn === btn; stopDictation(); if (same) return; }
     var ta = $(btn.getAttribute('data-dictate'));
-    var Ctor = speechCtor();
-    if (!Ctor) {
+    if (!speechCtor()) {
       toast('Voice button not supported here: tap the box and use the 🎤 key on your keyboard');
       try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
       return;
     }
-    var rec; try { rec = new Ctor(); } catch (e) { toast('Voice not available: use the 🎤 key on your keyboard'); ta.focus(); return; }
-    rec.lang = 'en-NZ'; rec.continuous = true; rec.interimResults = false; rec.maxAlternatives = 1;
-    rec.onresult = function (ev) { for (var i = ev.resultIndex; i < ev.results.length; i++) { if (ev.results[i].isFinal) appendSpoken(ta, ev.results[i][0].transcript); } };
-    rec.onerror = function (ev) {
-      var m = { 'not-allowed': 'Microphone blocked: allow the microphone for this app in your phone settings, or use the 🎤 key on your keyboard', 'service-not-allowed': 'Voice not allowed here: use the 🎤 key on your keyboard', 'no-speech': 'Didn\'t hear anything – tap 🎤 and try again', 'network': 'Voice needs internet – or use the 🎤 key on your keyboard', 'audio-capture': 'No microphone found' }[ev.error];
-      if (m) toast(m);
-    };
-    rec.onend = dictationEnded;
-    dict = { rec: rec, btn: btn, target: ta, label: btn.getAttribute('data-label') || btn.textContent };
-    btn.setAttribute('data-label', dict.label);
-    try { rec.start(); } catch (e) { dictationEnded(); toast('Voice not available: use the 🎤 key on your keyboard'); return; }
+    if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', btn.textContent);
+    dict = { on: true, rec: null, btn: btn, target: ta, label: btn.getAttribute('data-label'), restarts: [], fatal: false };
+    if (!startSession()) { finishDictation(); toast('Voice not available: use the 🎤 key on your keyboard'); return; }
     btn.classList.add('listening'); btn.textContent = '■ Listening… tap to stop';
   }
 

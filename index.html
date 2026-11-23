@@ -18,7 +18,7 @@
 <body>
 <header class="topbar">
   <div class="brand"><span class="logo" aria-hidden="true">▥</span> Fence Quote NZ</div>
-  <div class="topbar-right"><span id="refBadge" class="ref-badge"></span></div>
+  <div class="topbar-right"><span id="refBadge" class="ref-badge"></span><button class="btn small newq" id="btnNewTop" type="button">+ New quote</button></div>
 </header>
 
 <main id="app">
@@ -294,6 +294,16 @@
 </main>
 
 <!-- ============ CLIENT ACCEPT OVERLAY ============ -->
+<div id="newDlg" class="dlg-back" hidden role="dialog" aria-modal="true" aria-labelledby="newDlgTitle">
+  <div class="dlg">
+    <h2 id="newDlgTitle">Start a new quote?</h2>
+    <p id="newDlgText"></p>
+    <button class="btn block primary" id="newDlgSave" type="button">Save this quote, then start new</button>
+    <button class="btn block mt" id="newDlgDiscard" type="button">Start new without saving</button>
+    <button class="btn block ghost mt" id="newDlgCancel" type="button">Cancel – keep working on this one</button>
+  </div>
+</div>
+
 <div id="clientOverlay" class="overlay" hidden>
   <div class="overlay-bar">
     <span>Client review</span>

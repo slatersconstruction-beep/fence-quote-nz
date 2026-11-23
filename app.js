@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.1.0';
+  var APP_VERSION = '1.2.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -643,7 +643,25 @@
     $('btnAccept').addEventListener('click', doAccept);
     sigBind();
     // saved / record
-    $('btnNewQuote').addEventListener('click', function () { draft = newDraft(); saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc(); go('measure'); toast('New quote ' + draft.ref); });
+    function startNew() { $('newDlg').hidden = true; draft = newDraft(); saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc(); renderSaved(); go('measure'); window.scrollTo(0, 0); toast('New quote ' + draft.ref + ' started'); }
+    function askNew() {
+      var started = String(draft.input.length || '').trim() !== '' || draft.client.name.trim() !== '' || draft.client.address.trim() !== '';
+      if (!started) { startNew(); return; }
+      var rec = findRecord(draft.ref);
+      var who = draft.client.name.trim() ? ' for ' + draft.client.name.trim() : '';
+      $('newDlgText').textContent = rec && rec.status === 'accepted'
+        ? 'Quote ' + draft.ref + who + ' is already accepted and kept in Saved quotes. Your screen will be cleared for a new quote.'
+        : 'The quote on screen (' + draft.ref + who + ') will be cleared. Save it first so you can open it again later from Saved quotes.';
+      $('newDlgSave').hidden = !!(rec && rec.status === 'accepted');
+      $('newDlgDiscard').textContent = rec && rec.status === 'accepted' ? 'Start new quote' : (rec ? 'Start new (keep the last saved copy)' : 'Start new without saving');
+      $('newDlg').hidden = false;
+    }
+    $('btnNewQuote').addEventListener('click', askNew);
+    $('btnNewTop').addEventListener('click', askNew);
+    $('newDlgSave').addEventListener('click', function () { var r = saveAwaiting(); startNew(); toast('Saved ' + r.ref + '. New quote ' + draft.ref + ' started'); });
+    $('newDlgDiscard').addEventListener('click', startNew);
+    $('newDlgCancel').addEventListener('click', function () { $('newDlg').hidden = true; });
+    $('newDlg').addEventListener('click', function (e) { if (e.target === this) this.hidden = true; });
     $('recShare').addEventListener('click', function () { var r = currentRecord(); if (r) shareDoc(r.doc, $('recHelp')); });
     $('recDownload').addEventListener('click', function () { var r = currentRecord(); if (r) downloadDoc(r.doc, $('recHelp')); });
     $('recOpenPdf').addEventListener('click', function () { var r = currentRecord(); if (r) openDoc(r.doc); });

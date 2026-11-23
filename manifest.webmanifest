@@ -1,7 +1,7 @@
 {
   "name": "Fence Quote NZ",
   "short_name": "Fence Quote",
-  "description": "Quote timber paling fences onsite: takeoff, client quote, acceptance and PDF.",
+  "description": "Quote timber paling fences and decks onsite: takeoff, client quote, acceptance and PDF.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -1,11 +1,11 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '2.1.0';
+  var APP_VERSION = '2.2.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
-  var K = { profile: 'fq_profile', draft: 'fq_draft', prices: 'fq_prices', palings: 'fq_palings', records: 'fq_records', counter: 'fq_counter', invCounter: 'fq_invcounter' };
+  var K = { profile: 'fq_profile', draft: 'fq_draft', prices: 'fq_prices', palings: 'fq_palings', boards: 'fq_boards', records: 'fq_records', counter: 'fq_counter', invCounter: 'fq_invcounter' };
   var ACCEPT_STATEMENT = 'I have read this quote, including the scope of works, exclusions, payment terms and fixed price, and I accept it.';
 
   // ---------------- storage ----------------
@@ -55,9 +55,10 @@
   var profile = Object.assign(clone(D.defaults.profile), load(K.profile, {}));
   var priceOverrides = load(K.prices, {});
   var customPalings = load(K.palings, []);
+  var customBoards = load(K.boards, []);
   var records = load(K.records, []);
   var draft = load(K.draft, null);
-  var calc = null, pricing = null, currentRecordId = null;
+  var calc = null, deckCalc = null, pricing = null, currentRecordId = null;
 
   function nextRef() {
     var p = nzParts(); var day = p.year.slice(2) + p.month + p.day;
@@ -75,10 +76,20 @@
       id: 'd' + Date.now(), ref: nextRef(), input: { length: '', height: 1.8 }, options: clone(D.defaults.options),
       labour: [{ name: (profile.contactPerson || 'Me'), hours: 8, rate: 75 }], extras: [], marginPct: 10, roundTo: 0, discountPct: 0, startDate: '', durationDays: '',
       client: { name: '', address: '', phone: '', email: '' }, issueDate: issue, expiryDate: addDays(issue, profile.validityDays || 30),
-      scope: '', scopeEdited: false, exclusions: profile.exclusions, paymentTerms: profile.paymentTerms, optVer: 2
+      scope: '', scopeEdited: false, exclusions: profile.exclusions, paymentTerms: profile.paymentTerms, optVer: 2,
+      jobs: { fence: true, deck: false }, deck: clone(D.deckDefaults)
     };
   }
+  // older quotes (before decks) are fence-only
+  function normDraft(d) {
+    d.jobs = d.jobs || { fence: true, deck: false };
+    d.deck = d.deck || {};
+    d.deck.input = Object.assign(clone(D.deckDefaults.input), d.deck.input || {});
+    d.deck.options = Object.assign(clone(D.deckDefaults.options), d.deck.options || {});
+    return d;
+  }
   if (!draft || !draft.ref) draft = newDraft();
+  normDraft(draft);
   draft.options = Object.assign(clone(D.defaults.options), draft.options || {});
   if (!draft.optVer) { if (Number(draft.options.maxCentres) === 2.4) draft.options.maxCentres = 1.8; if (draft.options.railId === 'bn-0308502') draft.options.railId = 'auto'; draft.optVer = 2; }
   function saveDraft() { save(K.draft, draft); }
@@ -91,19 +102,46 @@
     if (o.price != null && o.price !== '') { it.price = Number(o.price); it.overridden = true; }
     if (o.perPack) it.perPack = Number(o.perPack);
     if (o.yieldM3) it.yieldM3 = Number(o.yieldM3);
+    if (o.supplier) it.supplier = String(o.supplier);
     return it;
   }
   function catalogue() {
     return {
       palings: D.palings.concat(customPalings).map(applyOv),
       posts: D.posts.map(applyOv), rails: D.rails.map(applyOv),
-      nails: applyOv(D.nails), railFix: applyOv(D.railFix), concrete: applyOv(D.concrete)
+      nails: applyOv(D.nails), railFix: applyOv(D.railFix), concrete: applyOv(D.concrete),
+      deck: {
+        piles: D.deck.piles.map(applyOv), joists: D.deck.joists.map(applyOv), bearers: D.deck.bearers.map(applyOv),
+        boards: D.deck.boards.concat(customBoards).map(applyOv), screws: applyOv(D.deck.screws), hangers: D.deck.hangers.map(applyOv),
+        ties: applyOv(D.deck.ties), wireDogs: applyOv(D.deck.wireDogs), bolts: applyOv(D.deck.bolts), nails: applyOv(D.deck.nails), concrete: applyOv(D.concrete)
+      }
     };
   }
+  var OFF = { ok: false, off: true, errors: [], warnings: [], notes: [], lines: [], total: 0 };
+  function takeoffsOk() { var j = draft.jobs; return (j.fence || j.deck) && (!j.fence || calc.ok) && (!j.deck || deckCalc.ok); }
+  function matTotal() { return C.r2((draft.jobs.fence && calc.ok ? calc.total : 0) + (draft.jobs.deck && deckCalc.ok ? deckCalc.total : 0)); }
+  function jobWord(jobs) { jobs = jobs || draft.jobs; return jobs.fence && jobs.deck ? 'fence and deck' : jobs.deck ? 'deck' : 'fence'; }
+  function jobDesc(jobs) { jobs = jobs || draft.jobs; return jobs.fence && jobs.deck ? 'Supply and install timber paling fence and timber deck' : jobs.deck ? 'Supply and build timber deck' : 'Supply and install timber paling fence'; }
 
   // ---------------- scope ----------------
-  function buildScope(t) {
-    if (!t || !t.ok) return '';
+  function buildScope() {
+    var parts = [];
+    if (draft.jobs.fence && calc.ok) parts.push(fenceScope(calc));
+    if (draft.jobs.deck && deckCalc.ok) parts.push(deckScope(deckCalc));
+    if (parts.length === 2) return 'FENCE\n' + parts[0].replace(/\n- Tidy up and removal of our offcuts and packaging$/, '') + '\n\nDECK\n' + parts[1];
+    return parts.join('\n\n');
+  }
+  function sizeName(n) { return String(n || '').replace(/ \(green\)/, '').replace(/ SG8/, ''); }
+  function deckScope(t) {
+    var s = t.summary;
+    return 'Supply and build a ' + s.length.toFixed(1) + ' m × ' + s.width.toFixed(1) + ' m timber deck (' + s.area.toFixed(1) + ' m²), about ' + Math.round(s.height * 1000) + ' mm high, ' + (s.attached ? 'attached to the house' : 'free-standing') + ', on level ground:\n' +
+      '- ' + s.pileCount + ' x 125 × 125 H5 timber piles set in concrete, ' + s.bearerRows + ' row' + (s.bearerRows > 1 ? 's' : '') + ' of ' + sizeName(s.bearer.name.replace(/ bearer$/, '')) + ' bearers\n' +
+      '- ' + sizeName(s.joist.name.replace(/ framing/, '')) + ' joists at ' + s.centres + ' mm centres' + (s.attached ? ', on galvanised joist hangers from a stringer bolted to the house' : '') + '\n' +
+      '- Decking: ' + s.board.name + ', ' + s.gapMm + ' mm gaps, fixed with stainless steel screws\n' +
+      '- Galvanised structural fixings (joist ties, wire dogs, nails)\n' +
+      '- Tidy up and removal of our offcuts and packaging';
+  }
+  function fenceScope(t) {
     var s = t.summary;
     var gap = s.gapMm > 0 ? 'with ' + s.gapMm + ' mm gaps' : s.gapMm < 0 ? 'overlapped ' + (-s.gapMm) + ' mm' : 'butted';
     return 'Supply and install ' + s.length.toFixed(1) + ' m of ' + s.height.toFixed(2) + ' m high timber paling fence in one straight run on level ground:\n' +
@@ -116,12 +154,14 @@
 
   // ---------------- recalc ----------------
   function recalc() {
-    calc = C.takeoff(draft.input, draft.options, catalogue());
-    var mat = calc.ok ? calc.total : 0;
+    var cat = catalogue();
+    calc = draft.jobs.fence ? C.takeoff(draft.input, draft.options, cat) : OFF;
+    deckCalc = draft.jobs.deck ? C.deckTakeoff(draft.deck.input, draft.deck.options, cat.deck, D.deckRules) : OFF;
+    var mat = matTotal();
     pricing = C.price(mat, draft.labour, draft.extras, { gstRegistered: profile.gstRegistered, marginPct: draft.marginPct, roundTo: draft.roundTo, discountPct: draft.discountPct });
-    if (!draft.scopeEdited && calc.ok) draft.scope = buildScope(calc);
+    if (!draft.scopeEdited && takeoffsOk()) draft.scope = buildScope();
     saveDraft();
-    renderMeasure(); renderQuote(); renderSendIfVisible();
+    renderMeasure(); renderDeck(); renderQuote(); renderSendIfVisible();
     $('refBadge').textContent = draft.ref;
   }
 
@@ -133,7 +173,26 @@
     $('optRailRows').value = String(o.railRows); $('optClearance').value = Math.round(o.groundClearance * 1000); $('optGap').value = o.palingGapMm;
     $('optWaste').value = o.palingWastePct; $('optFixWaste').value = o.fixingWastePct; $('optNailsPer').value = o.nailsPerPalingPerRail;
     $('optExposure').value = o.exposure; $('optGround').value = o.ground; $('optSpecial').value = o.special; $('optFront').checked = !!o.frontYard;
-    fillPalingSelect(); fillRailSelect();
+    fillPalingSelect(); fillRailSelect(); fillDeckInputs();
+  }
+  function fillDeckInputs() {
+    var di = draft.deck.input, o = draft.deck.options;
+    $('jobFence').checked = !!draft.jobs.fence; $('jobDeck').checked = !!draft.jobs.deck;
+    $('dLength').value = di.length; $('dWidth').value = di.width; $('dHeight').value = di.height;
+    $('dAttached').checked = o.attached !== false; $('dCentres').value = String(o.joistCentres);
+    $('dCant').value = o.cantilever; $('dGap').value = o.boardGapMm; $('dEmbed').value = Math.round(o.pileEmbed * 1000); $('dHoleDia').value = Math.round(o.pileHoleDia * 1000);
+    $('dBoardWaste').value = o.boardWastePct; $('dTimberWaste').value = o.timberWastePct; $('dFixWaste').value = o.fixingWastePct; $('dScrews').value = o.screwsPerCrossing;
+    $('dTies').value = o.tiesPerCrossing; $('dDogs').value = o.wireDogsPerPile; $('dBolts').value = o.boltCentres; $('dFront').checked = o.frontBoundary !== false; $('dCoastal').checked = !!o.coastal;
+    fillDeckSelects();
+  }
+  function fillDeckSelects() {
+    var dc = catalogue().deck, o = draft.deck.options;
+    $('dBoard').innerHTML = dc.boards.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(b.name) + ' – ' + money(b.price) + '/m' + (b.supplier ? ' · ' + esc(b.supplier) : '') + '</option>'; }).join('');
+    $('dBoard').value = dc.boards.some(function (b) { return b.id === o.boardId; }) ? o.boardId : dc.boards[0].id;
+    $('dJoist').innerHTML = '<option value="auto">Auto (best price)</option>' + dc.joists.map(function (j) { return '<option value="' + esc(j.id) + '">' + esc(j.depthMm + ' × ' + j.widthMm) + '</option>'; }).join('');
+    $('dJoist').value = dc.joists.some(function (j) { return j.id === o.joistId; }) ? o.joistId : 'auto';
+    $('dBearer').innerHTML = '<option value="auto">Auto (best price)</option>' + dc.bearers.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(b.size === '140x90' ? '2/140 × 45 (nailed)' : b.size.replace('x', ' × ')) + '</option>'; }).join('');
+    $('dBearer').value = dc.bearers.some(function (b) { return b.id === o.bearerId; }) ? o.bearerId : 'auto';
   }
   function fillPalingSelect() {
     var cat = catalogue(), sel = $('selPaling');
@@ -151,8 +210,46 @@
     if (item.overridden) return '<span class="tag override">your price</span>';
     return '<span class="tag ' + item.status + '">' + (item.status === 'verified' ? 'checked ' + esc(item.checked) : item.status === 'derived' ? 'derived ' + esc(item.checked) : 'estimate – confirm') + '</span>';
   }
+  function lineHTML(l) {
+    var lm = l.unitLabel === 'm';
+    return '<div class="mline" data-key="' + l.key + '"><div class="mline-top"><div><div class="mline-title">' + esc(l.label) + '</div>' +
+      '<div class="mline-item">' + (l.item.url ? '<a href="' + esc(l.item.url) + '" target="_blank" rel="noopener">' + esc(l.item.name) + '</a>' : esc(l.item.name)) + (l.item.item ? ' · I/N ' + esc(l.item.item) : '') + (l.item.supplier ? ' · ' + esc(l.item.supplier) : '') + '</div></div>' +
+      '<div style="text-align:right"><div class="mline-qty">' + (lm ? Number(l.qty).toFixed(1) : l.qty) + '</div><div class="small muted">' + (lm ? 'metres' : l.unitLabel === 'each' ? 'to buy' : l.unitLabel + (l.qty === 1 ? '' : 's')) + '</div></div></div>' +
+      '<div class="mline-detail">' + esc(l.detail) + '</div>' +
+      '<div class="mline-price">' + (lm ? 'Per metre $' : 'Unit $') + '<input type="number" inputmode="decimal" step="0.01" min="0" data-price-id="' + esc(l.item.id) + '" value="' + l.unitPrice.toFixed(2) + '"> ' + statusTag(l.item) +
+      '<span style="margin-left:auto" class="mline-sub">' + money(l.subtotal) + '</span></div></div>';
+  }
+  function alertsHTML(t) {
+    return {
+      errors: (t.errors || []).map(function (e) { return '<div class="alert error">⛔ ' + esc(e) + '</div>'; }).join(''),
+      warnings: (t.warnings || []).map(function (w) {
+        var label = w.level === 'design' ? 'Estimating / design' : w.level === 'planning' ? 'Planning rule' : 'Consent rule';
+        return '<div class="alert ' + w.level + '"><span class="tag ' + w.level + '">' + label + '</span> ' + esc(w.text) + '</div>';
+      }).join('')
+    };
+  }
+  function renderDeck() {
+    $('deckSection').hidden = !draft.jobs.deck;
+    $('fenceSection').hidden = !draft.jobs.fence;
+    $('jobsNote').innerHTML = !draft.jobs.fence && !draft.jobs.deck ? '<b class="bad-text">Tick Fence or Deck (or both) to start.</b>' : 'Tick one or both. Everything you tick goes on the same quote and PDF' + (draft.jobs.fence && draft.jobs.deck && matTotal() > 0 ? ' – materials total for both: <b>' + money(matTotal()) + '</b>' : '') + '.';
+    if (!draft.jobs.deck) return;
+    var t = deckCalc, a = alertsHTML(t);
+    $('deckErrors').innerHTML = a.errors; $('deckWarnings').innerHTML = a.warnings;
+    if (!t.ok) {
+      $('deckLines').innerHTML = '<p class="muted">' + (draft.deck.input.length || draft.deck.input.width ? 'Fix the problem above to see the deck takeoff.' : 'Enter the deck length, width and height.') + '</p>';
+      $('deckSummary').innerHTML = ''; $('deckTotal').textContent = ''; $('deckBasisNote').textContent = '';
+      return;
+    }
+    var s = t.summary;
+    $('deckSummary').innerHTML = ['<span><b>' + s.area.toFixed(1) + '</b> m²</span>', '<span><b>' + s.pileCount + '</b> piles</span>', '<span>Joists <b>' + s.joist.depthMm + '×' + s.joist.widthMm + '</b> @ ' + s.centres + '</span>',
+      '<span>Bearers <b>' + s.bearer.size.replace('x', '×') + '</b> × ' + s.bearerRows + '</span>', '<span>Joist span <b>' + s.span.toFixed(2) + ' m</b> (max ' + s.maxSpan.toFixed(2) + ')</span>'].join('');
+    $('deckLines').innerHTML = t.lines.map(lineHTML).join('') + (t.notes || []).map(function (n) { return '<p class="small muted">ℹ️ ' + esc(n) + '</p>'; }).join('');
+    $('deckTotal').textContent = money(t.total);
+    $('deckBasisNote').textContent = 'Unit prices are Bunnings NZ and Mitre 10 NZ public retail prices incl GST, checked ' + D.priceCheckedLabel + '. Timber is priced per metre. Edit any price to use your own (saved for future quotes). "estimate" = not sold online, ask your merchant.';
+  }
   function renderMeasure() {
     var t = calc;
+    if (!draft.jobs.fence) return;
     $('takeoffErrors').innerHTML = (t.errors || []).map(function (e) { return '<div class="alert error">⛔ ' + esc(e) + '</div>'; }).join('');
     $('takeoffWarnings').innerHTML = (t.warnings || []).map(function (w) {
       var label = w.level === 'design' ? 'Estimating / design' : w.level === 'planning' ? 'Planning rule' : 'Consent rule';
@@ -166,14 +263,7 @@
     var s = t.summary;
     $('takeoffSummary').innerHTML = ['<span><b>' + s.posts + '</b> posts</span>', '<span>Actual centres <b>' + s.centres.toFixed(3) + ' m</b></span>',
       '<span><b>' + s.rows + '</b> rail rows</span>', '<span>Post stock <b>' + s.post.lengthM.toFixed(1) + ' m</b></span>', '<span>Paling <b>' + (s.paling.lengthM * 1000) + ' mm</b></span>'].join('');
-    $('takeoffLines').innerHTML = t.lines.map(function (l) {
-      return '<div class="mline" data-key="' + l.key + '"><div class="mline-top"><div><div class="mline-title">' + esc(l.label) + '</div>' +
-        '<div class="mline-item"><a href="' + esc(l.item.url) + '" target="_blank" rel="noopener">' + esc(l.item.name) + '</a>' + (l.item.item ? ' · I/N ' + esc(l.item.item) : '') + '</div></div>' +
-        '<div style="text-align:right"><div class="mline-qty">' + l.qty + '</div><div class="small muted">' + (l.unitLabel === 'each' ? 'to buy' : l.unitLabel + (l.qty === 1 ? '' : 's')) + '</div></div></div>' +
-        '<div class="mline-detail">' + esc(l.detail) + '</div>' +
-        '<div class="mline-price">Unit $<input type="number" inputmode="decimal" step="0.01" min="0" data-price-id="' + esc(l.item.id) + '" value="' + l.unitPrice.toFixed(2) + '"> ' + statusTag(l.item) +
-        '<span style="margin-left:auto" class="mline-sub">' + money(l.subtotal) + '</span></div></div>';
-    }).join('');
+    $('takeoffLines').innerHTML = t.lines.map(lineHTML).join('');
     $('matTotal').textContent = money(t.total);
     $('priceBasisNote').textContent = 'Unit prices are Bunnings NZ retail, GST-inclusive, prices checked ' + D.priceCheckedLabel + '. Edit any unit price to override it (saved for future quotes). Items marked "estimate" could not be read from Bunnings automatically: tap the product link and enter the shelf price.';
   }
@@ -202,9 +292,9 @@
   function renderQuote() {
     renderBizSummary();
     var p = pricing;
-    $('qMaterials').textContent = money(calc.ok ? calc.total : 0);
-    $('qMaterialsBasis').innerHTML = calc.ok
-      ? 'Pulled from the takeoff (retail, incl GST). ' + (p.registered ? 'GST registered: costed at <b>' + money(p.materialsCost) + ' excl GST</b> (you claim the ' + money(p.materialsGstClaimable) + ' GST back), and GST is added once on the final price.' : 'Not GST registered: costed at the full GST-inclusive ' + money(p.materialsCost) + ' (you cannot claim it back). No GST is charged on the quote.')
+    $('qMaterials').textContent = money(matTotal());
+    $('qMaterialsBasis').innerHTML = takeoffsOk()
+      ? 'Pulled from the takeoff (retail, incl GST)' + (draft.jobs.fence && draft.jobs.deck ? ': fence ' + money(calc.total) + ' + deck ' + money(deckCalc.total) : '') + '. ' + (p.registered ? 'GST registered: costed at <b>' + money(p.materialsCost) + ' excl GST</b> (you claim the ' + money(p.materialsGstClaimable) + ' GST back), and GST is added once on the final price.' : 'Not GST registered: costed at the full GST-inclusive ' + money(p.materialsCost) + ' (you cannot claim it back). No GST is charged on the quote.')
       : '<span class="tag consent">Takeoff incomplete</span> Fix the takeoff on the Measure tab.';
     p.labourLines.forEach(function (l, i) { var el = document.querySelector('[data-lt="' + i + '"]'); if (el) el.textContent = money(l.total); });
     $('qLabourTotal').textContent = money(p.labourTotal);
@@ -241,7 +331,7 @@
   function buildDoc() {
     var p = pricing;
     return {
-      ref: draft.ref, issueDate: draft.issueDate, expiryDate: draft.expiryDate, issueDateLabel: dateLabel(draft.issueDate), expiryDateLabel: dateLabel(draft.expiryDate),
+      ref: draft.ref, jobs: { fence: !!draft.jobs.fence, deck: !!draft.jobs.deck }, jobLabel: jobWord(), jobDesc: jobDesc(), issueDate: draft.issueDate, expiryDate: draft.expiryDate, issueDateLabel: dateLabel(draft.issueDate), expiryDateLabel: dateLabel(draft.expiryDate),
       business: businessSnapshot(), client: clone(draft.client), scope: draft.scope,
       exclusions: String(draft.exclusions || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean),
       paymentTerms: draft.paymentTerms,
@@ -256,7 +346,9 @@
   }
   function problems() {
     var out = [];
-    if (!calc.ok) out.push('Takeoff has a problem (see Measure tab): ' + (calc.errors[0] || 'enter length and height'));
+    if (!draft.jobs.fence && !draft.jobs.deck) out.push('Pick Fence or Deck on the Measure tab.');
+    if (draft.jobs.fence && !calc.ok) out.push('Fence takeoff has a problem (see Measure tab): ' + (calc.errors[0] || 'enter length and height'));
+    if (draft.jobs.deck && !deckCalc.ok) out.push('Deck takeoff has a problem (see Measure tab): ' + (deckCalc.errors[0] || 'enter length, width and height'));
     if (!profile.tradingName) out.push('Add your business name in My business details.');
     if (!draft.client.name.trim()) out.push('Enter the client name on the Quote tab.');
     if (!draft.client.address.trim()) out.push('Enter the job address on the Quote tab.');
@@ -295,7 +387,11 @@
   // ---------------- records ----------------
   function persistRecords() { return save(K.records, records); }
   function findRecord(ref) { return records.filter(function (r) { return r.ref === ref; })[0]; }
-  function internalSnapshot() { return { draft: clone(draft), takeoff: calc.ok ? { lines: calc.lines.map(function (l) { return { label: l.label, item: l.item.name, qty: l.qty, unitPrice: l.unitPrice, subtotal: l.subtotal }; }), total: calc.total } : null, pricing: clone(pricing) }; }
+  function internalSnapshot() {
+    function ls(t, pre) { return t.ok ? t.lines.map(function (l) { return { label: pre + l.label, item: l.item.name, supplier: l.item.supplier || '', qty: l.qty, unit: l.unitLabel, unitPrice: l.unitPrice, subtotal: l.subtotal }; }) : []; }
+    var lines = (draft.jobs.fence ? ls(calc, draft.jobs.deck ? 'Fence: ' : '') : []).concat(draft.jobs.deck ? ls(deckCalc, draft.jobs.fence ? 'Deck: ' : '') : []);
+    return { draft: clone(draft), takeoff: takeoffsOk() ? { lines: lines, total: matTotal() } : null, pricing: clone(pricing) };
+  }
   function saveAwaiting() {
     var existing = findRecord(draft.ref);
     if (existing && existing.status === 'accepted') { draft.ref = nextRef(); saveDraft(); existing = null; toast('That ref was already accepted, so this is now ' + draft.ref); }
@@ -356,7 +452,7 @@
   }
   function emailDraft(doc, helpEl) {
     var subj = 'Quote ' + doc.ref + ' – ' + doc.business.tradingName + (doc.acceptance ? ' (accepted)' : '');
-    var body = 'Hi ' + (doc.client.name || '') + ',\n\n' + (doc.acceptance ? 'Thanks for accepting. Attached is your accepted quote ' : 'Please find attached quote ') + doc.ref + ' for the fence at ' + (doc.client.address || '') + '.\n\n' + (doc.price.discountPct > 0 ? 'Price before discount: ' + money(doc.price.listPrice) + '\nDiscount ' + fmtPct(doc.price.discountPct) + ': -' + money(doc.price.discountAmount) + '\n' : '') + 'Fixed price: ' + money(doc.price.amount) + (doc.price.gstRegistered ? ' incl GST' : ' (no GST)') + (doc.schedule ? '\nStart date: ' + doc.schedule.startLabel + '\nJob length: ' + doc.schedule.durationLabel : '') + '\nValid until: ' + doc.expiryDateLabel + (doc.business.bankAccountNumber ? '\n\nHow to pay: bank transfer to ' + (doc.business.bankAccountName ? doc.business.bankAccountName + ', ' : '') + doc.business.bankAccountNumber + (doc.business.bankName ? ' (' + doc.business.bankName + ')' : '') + ', reference ' + doc.ref + (depositOf(doc) ? '\nDeposit (' + depositOf(doc).pct + '%): ' + money(depositOf(doc).amount) + ' on acceptance' : '') : '') + '\n\nKind regards,\n' + (doc.business.contactPerson || '') + '\n' + doc.business.tradingName + (doc.business.phone ? '\n' + doc.business.phone : '');
+    var body = 'Hi ' + (doc.client.name || '') + ',\n\n' + (doc.acceptance ? 'Thanks for accepting. Attached is your accepted quote ' : 'Please find attached quote ') + doc.ref + ' for the ' + (doc.jobLabel || 'fence') + ' at ' + (doc.client.address || '') + '.\n\n' + (doc.price.discountPct > 0 ? 'Price before discount: ' + money(doc.price.listPrice) + '\nDiscount ' + fmtPct(doc.price.discountPct) + ': -' + money(doc.price.discountAmount) + '\n' : '') + 'Fixed price: ' + money(doc.price.amount) + (doc.price.gstRegistered ? ' incl GST' : ' (no GST)') + (doc.schedule ? '\nStart date: ' + doc.schedule.startLabel + '\nJob length: ' + doc.schedule.durationLabel : '') + '\nValid until: ' + doc.expiryDateLabel + (doc.business.bankAccountNumber ? '\n\nHow to pay: bank transfer to ' + (doc.business.bankAccountName ? doc.business.bankAccountName + ', ' : '') + doc.business.bankAccountNumber + (doc.business.bankName ? ' (' + doc.business.bankName + ')' : '') + ', reference ' + doc.ref + (depositOf(doc) ? '\nDeposit (' + depositOf(doc).pct + '%): ' + money(depositOf(doc).amount) + ' on acceptance' : '') : '') + '\n\nKind regards,\n' + (doc.business.contactPerson || '') + '\n' + doc.business.tradingName + (doc.business.phone ? '\n' + doc.business.phone : '');
     helpEl.innerHTML = '<div class="alert design">⚠️ This email draft has <b>NO attachment</b>. Download the PDF first, then attach it in your mail app before you tap Send. Easier: use <b>Share PDF → Mail/Gmail</b>, which attaches it for you.</div>';
     location.href = 'mailto:' + encodeURIComponent(doc.client.email || '') + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
   }
@@ -370,7 +466,7 @@
       if (p.indexOf('bank account') >= 0) fix = 'pBankAccNo';
       if (!tip) {
         if (p.indexOf('client name') >= 0) fix = 'cName'; else if (p.indexOf('job address') >= 0) fix = 'cAddress';
-        else if (p.indexOf('Scope') === 0) fix = 'qScope'; else if (p.indexOf('Takeoff') === 0 || p.indexOf('Price is') === 0) fix = 'inLength';
+        else if (p.indexOf('Scope') === 0) fix = 'qScope'; else if (p.indexOf('Deck takeoff') === 0) fix = 'dLength'; else if (p.indexOf('Pick Fence') === 0) fix = 'jobFence'; else if (p.indexOf('Fence takeoff') === 0 || p.indexOf('Price is') === 0) fix = draft.jobs.fence ? 'inLength' : 'dLength';
         else if (p.indexOf('business name') >= 0) fix = 'pTrading';
       }
       return '<div class="alert ' + (tip ? 'info' : 'error') + '">' + esc(p) + (fix ? '<button type="button" class="fix-btn' + (tip ? ' tip' : '') + '" data-fix="' + fix + '">' + (tip ? 'Add it now →' : 'Fix this now →') + '</button>' : '') + '</div>';
@@ -496,7 +592,7 @@
     var list = records.slice().sort(function (a, b) { return (b.updatedAt || '').localeCompare(a.updatedAt || ''); });
     $('savedList').innerHTML = list.length ? list.map(function (r) {
       return '<button type="button" class="saved-item" data-rec="' + esc(r.id) + '"><div class="s-top"><span>' + esc(r.ref) + ' · ' + esc(r.doc.client.name || 'No name') + '</span><span class="badge ' + r.status + '">' + (r.status === 'accepted' ? 'Accepted' : 'Saved – not signed') + '</span></div>' +
-        '<div class="s-sub">' + esc(r.doc.client.address || '') + '</div><div class="s-sub">' + money(r.doc.price.amount) + (r.doc.schedule ? ' · start ' + esc(r.doc.schedule.startDate ? dateLabel(r.doc.schedule.startDate) : 'TBC') + (r.doc.schedule.durationDays ? ', ' + r.doc.schedule.durationDays + ' day' + (r.doc.schedule.durationDays === 1 ? '' : 's') : '') : '') + ' · ' + (r.status === 'accepted' ? 'accepted by ' + esc(r.doc.acceptance.name) + ', ' + esc(r.doc.acceptance.atLabel) : 'saved ' + esc(dateTimeLabel(r.updatedAt))) + '</div></button>';
+        '<div class="s-sub">' + (r.doc.jobLabel ? '<b>' + esc(r.doc.jobLabel.charAt(0).toUpperCase() + r.doc.jobLabel.slice(1)) + '</b> · ' : '') + esc(r.doc.client.address || '') + '</div><div class="s-sub">' + money(r.doc.price.amount) + (r.doc.schedule ? ' · start ' + esc(r.doc.schedule.startDate ? dateLabel(r.doc.schedule.startDate) : 'TBC') + (r.doc.schedule.durationDays ? ', ' + r.doc.schedule.durationDays + ' day' + (r.doc.schedule.durationDays === 1 ? '' : 's') : '') : '') + ' · ' + (r.status === 'accepted' ? 'accepted by ' + esc(r.doc.acceptance.name) + ', ' + esc(r.doc.acceptance.atLabel) : 'saved ' + esc(dateTimeLabel(r.updatedAt))) + '</div></button>';
     }).join('') : '<p class="muted">No saved quotes yet. Tap 💾 Save quote on the Quote screen to keep one and finish it later. Quotes are also saved when you share or download the PDF, or when a client accepts.</p>';
   }
   var deleteArmed = false;
@@ -552,7 +648,7 @@
       date: dateISO, dateLabel: dateLabel(dateISO), due: due, dueLabel: due === dateISO ? dateLabel(due) + ' (on receipt)' : dateLabel(due),
       quoteRef: doc.ref, acceptedLabel: doc.acceptance ? dateLabel(doc.acceptance.at.slice(0, 10)) : '',
       business: businessSnapshot(), client: clone(doc.client), gstRegistered: reg,
-      description: 'Supply and install timber paling fence at ' + (doc.client.address || 'the job address') + ', as per quote ' + doc.ref + ' accepted' + (doc.acceptance ? ' by ' + doc.acceptance.name + ' on ' + doc.acceptance.atLabel : '') + '.' + (doc.schedule && doc.schedule.startDate ? ' Agreed start date: ' + doc.schedule.startLabel + '.' : ''),
+      description: (doc.jobDesc || 'Supply and install timber paling fence') + ' at ' + (doc.client.address || 'the job address') + ', as per quote ' + doc.ref + ' accepted' + (doc.acceptance ? ' by ' + doc.acceptance.name + ' on ' + doc.acceptance.atLabel : '') + '.' + (doc.schedule && doc.schedule.startDate ? ' Agreed start date: ' + doc.schedule.startLabel + '.' : ''),
       contractPrice: p.amount, contractList: p.listPrice, discountPct: p.discountPct || 0, discountAmount: p.discountAmount || 0,
       previous: Math.round(previous * 100) / 100, amount: o.amount, gst: gst, exGst: Math.round((o.amount - gst) * 100) / 100
     };
@@ -584,10 +680,10 @@
   function currentRecord() { return records.filter(function (x) { return x.id === currentRecordId; })[0]; }
   function loadIntoEditor(r, asNew) {
     // keep whatever is on screen safe before opening another quote
-    var started = String(draft.input.length || '').trim() !== '' || draft.client.name.trim() !== '';
+    var started = String(draft.input.length || '').trim() !== '' || String(draft.deck.input.length || '').trim() !== '' || draft.client.name.trim() !== '';
     var cur = findRecord(draft.ref);
     if (started && draft.ref !== r.ref && !(cur && cur.status === 'accepted')) saveAwaiting();
-    draft = clone(r.internal.draft);
+    draft = normDraft(clone(r.internal.draft));
     draft.options = Object.assign(clone(D.defaults.options), draft.options || {});
     if (asNew) { draft.ref = nextRef(); draft.id = 'd' + Date.now(); draft.issueDate = todayISO(); draft.expiryDate = addDays(draft.issueDate, profile.validityDays || 30); delete draft.acceptedFrom; }
     saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc(); go('quote');
@@ -616,20 +712,26 @@
   }
   function allPriceItems() {
     var cat = catalogue();
-    return [].concat(cat.palings.map(function (x) { return ['Paling', x]; }), cat.posts.map(function (x) { return ['Post', x]; }), cat.rails.map(function (x) { return ['Rail', x]; }), [['Paling nails', cat.nails], ['Rail fixings', cat.railFix], ['Concrete', cat.concrete]]);
+    var dc = cat.deck;
+    return [['#', 'Fences']].concat(cat.palings.map(function (x) { return ['Paling', x]; }), cat.posts.map(function (x) { return ['Post', x]; }), cat.rails.map(function (x) { return ['Rail', x]; }), [['Paling nails', cat.nails], ['Rail fixings', cat.railFix], ['Concrete (fences & decks)', cat.concrete]],
+      [['#', 'Decks']], dc.boards.map(function (x) { return ['Decking', x]; }), dc.joists.map(function (x) { return ['Joist timber', x]; }), dc.bearers.map(function (x) { return ['Bearer', x]; }), dc.piles.map(function (x) { return ['Pile', x]; }),
+      [['Decking screws', dc.screws]], dc.hangers.map(function (x) { return ['Joist hanger', x]; }), [['Joist ties', dc.ties], ['Wire dogs', dc.wireDogs], ['Stringer bolts', dc.bolts], ['Deck nails', dc.nails]]);
   }
   function renderPrices() {
-    $('priceIntro').innerHTML = 'Bunnings NZ public retail prices, <b>GST-inclusive</b>, checked ' + esc(D.priceCheckedLabel) + '. <span class="tag verified">checked</span> read from the product page. <span class="tag derived">derived</span> from a checked per-metre price. <span class="tag estimate">estimate</span> Bunnings blocked automated reading: open the link and enter the shelf price. Your overrides are saved on this phone.';
+    $('priceIntro').innerHTML = 'Bunnings NZ and Mitre 10 NZ public retail prices, <b>GST-inclusive</b>, checked ' + esc(D.priceCheckedLabel) + '. <span class="tag verified">checked</span> read from the store website. <span class="tag derived">derived</span> worked out from a checked price (e.g. a 6 m length ÷ 6 = price per metre). <span class="tag estimate">estimate</span> not sold online: ask your supplier and type the price. You can also change the supplier name. Your prices are saved on this phone.';
     $('priceList').innerHTML = allPriceItems().map(function (pair) {
       var kind = pair[0], it = pair[1];
-      var extra = '';
-      if (it.perPack != null && (kind === 'Paling nails' || kind === 'Rail fixings')) extra = '<label class="small">Qty per pack <input type="number" inputmode="numeric" data-pack-id="' + esc(it.id) + '" value="' + esc(it.perPack) + '"></label>';
+      if (kind === '#') return '<h3 class="price-group">' + esc(it) + '</h3>';
+      var extra = '', customBoard = customBoards.some(function (c) { return c.id === it.id; });
+      if (it.perPack != null && it.unit === 'pack') extra = '<label class="small">Qty per pack <input type="number" inputmode="numeric" data-pack-id="' + esc(it.id) + '" value="' + esc(it.perPack) + '"></label>';
       if (it.yieldM3 != null) extra = '<label class="small">Yield per bag (m³) <input type="number" inputmode="decimal" step="0.0005" data-yield-id="' + esc(it.id) + '" value="' + esc(it.yieldM3) + '"></label>';
       return '<div class="price-row"><div class="pr-top"><div><b>' + esc(kind) + ':</b> ' + esc(it.name) + '</div></div>' +
         '<div class="small">' + (it.item ? 'I/N ' + esc(it.item) + ' · ' : '') + '<a href="' + esc(it.url || '#') + '" target="_blank" rel="noopener">' + esc(it.url || 'no link') + '</a></div>' +
         '<div class="small muted">' + esc(it.note || '') + '</div>' +
-        '<div class="row-gap">' + statusTag(it) + ' <span class="small">Researched ' + money(it.researchedPrice) + '</span> <label class="small">Your price $<input type="number" inputmode="decimal" step="0.01" data-price-id="' + esc(it.id) + '" value="' + Number(it.price).toFixed(2) + '"></label>' + extra +
-        (it.overridden ? '<button type="button" class="btn small ghost" data-reset-price="' + esc(it.id) + '">Reset</button>' : '') + '</div></div>';
+        '<div class="row-gap">' + statusTag(it) + ' <span class="small">Researched ' + money(it.researchedPrice) + (it.unit === 'lm' ? '/m' : '') + '</span> <label class="small">Your price $<input type="number" inputmode="decimal" step="0.01" data-price-id="' + esc(it.id) + '" value="' + Number(it.price).toFixed(2) + '">' + (it.unit === 'lm' ? ' per metre' : '') + '</label>' + extra +
+        ' <label class="small">Supplier <input type="text" list="supplierList" data-sup-id="' + esc(it.id) + '" value="' + esc(it.supplier || '') + '" style="width:130px"></label>' +
+        (it.overridden || (priceOverrides[it.id] || {}).supplier ? '<button type="button" class="btn small ghost" data-reset-price="' + esc(it.id) + '">Reset</button>' : '') +
+        (customBoard ? '<button type="button" class="btn small danger" data-del-board="' + esc(it.id) + '">Remove</button>' : '') + '</div></div>';
     }).join('');
   }
   function setOverride(id, field, val) {
@@ -675,10 +777,12 @@
     return 'Imported ' + ok + ' paling' + (ok === 1 ? '' : 's') + '.' + (bad.length ? ' Skipped ' + bad.join('; ') : '');
   }
   function renderRules() {
-    $('rulesList').innerHTML = D.sources.map(function (s) {
+    $('rulesList').innerHTML = D.sources.concat([{ head: 'Decks' }], D.deckSources).map(function (s) {
+      if (s.head) return '<h3 class="price-group">' + esc(s.head) + '</h3>';
       return '<div class="rule-item"><span class="tag ' + (s.kind === 'rule' ? 'consent' : 'design') + '">' + (s.kind === 'rule' ? 'Rule / official' : 'Guidance') + '</span> <a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + '</a><div class="small">' + esc(s.summary) + '</div></div>';
     }).join('') + '<p class="small muted">Sources checked 23 Nov 2026. Auckland rules differ by zone, overlay and precinct: check the property on Auckland Council GeoMaps. Not legal advice.</p>';
     $('assumptionList').innerHTML = D.assumptions.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('');
+    $('deckAssumptionList').innerHTML = D.deckAssumptions.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('');
   }
   function renderStorageInfo() {
     var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
@@ -687,7 +791,7 @@
     $('storageInfo').innerHTML = html;
     if (navigator.storage && navigator.storage.persisted) navigator.storage.persisted().then(function (p) { $('storageInfo').innerHTML += '<p>' + (p ? '✓ Browser has granted persistent storage.' : 'Browser may clear data if the phone runs low on space or the site goes unused for a long time: export backups.') + '</p>'; });
   }
-  function backupObj() { return { app: 'fence-quote-nz', version: APP_VERSION, exportedAt: new Date().toISOString(), profile: profile, draft: draft, prices: priceOverrides, palings: customPalings, records: records }; }
+  function backupObj() { return { app: 'fence-quote-nz', version: APP_VERSION, exportedAt: new Date().toISOString(), profile: profile, draft: draft, prices: priceOverrides, palings: customPalings, boards: customBoards, records: records }; }
   function backupFile() {
     var name = 'fence-quote-backup-' + todayISO() + '.json';
     var blob = new Blob([JSON.stringify(backupObj(), null, 1)], { type: 'application/json' });
@@ -706,7 +810,8 @@
     if (o.profile) profile = Object.assign(clone(D.defaults.profile), o.profile);
     if (o.prices) priceOverrides = o.prices;
     if (Array.isArray(o.palings)) { var ids = customPalings.map(function (p) { return p.id; }); o.palings.forEach(function (p) { if (ids.indexOf(p.id) < 0) customPalings.push(p); }); }
-    save(K.profile, profile); save(K.prices, priceOverrides); save(K.palings, customPalings); persistRecords();
+    if (Array.isArray(o.boards)) { var bids = customBoards.map(function (p) { return p.id; }); o.boards.forEach(function (p) { if (bids.indexOf(p.id) < 0) customBoards.push(p); }); }
+    save(K.profile, profile); save(K.prices, priceOverrides); save(K.palings, customPalings); save(K.boards, customBoards); persistRecords();
     fillProfile(); fillMeasureInputs(); recalc(); renderSaved();
     return 'Imported: ' + added + ' quote(s) added, ' + kept + ' already on this phone (accepted records are never overwritten). Business profile and prices restored.';
   }
@@ -715,7 +820,10 @@
   // Required details: never let the quote move on to Send without them.
   function missingRequired() {
     var m = [];
-    if (!(Number(draft.input.length) > 0)) m.push({ id: 'inLength', view: 'measure', label: 'fence length' });
+    if (!draft.jobs.fence && !draft.jobs.deck) m.push({ id: 'jobFence', view: 'measure', label: 'job type (Fence or Deck)' });
+    if (draft.jobs.fence && !(Number(draft.input.length) > 0)) m.push({ id: 'inLength', view: 'measure', label: 'fence length' });
+    if (draft.jobs.deck && !(Number(draft.deck.input.length) > 0)) m.push({ id: 'dLength', view: 'measure', label: 'deck length' });
+    if (draft.jobs.deck && !(Number(draft.deck.input.width) > 0)) m.push({ id: 'dWidth', view: 'measure', label: 'deck width' });
     if (!draft.client.name.trim()) m.push({ id: 'cName', view: 'quote', label: "client's name" });
     if (!draft.client.address.trim()) m.push({ id: 'cAddress', view: 'quote', label: 'job address' });
     return m;
@@ -733,7 +841,7 @@
     toast('Enter the ' + txt + ' first');
   }
   function clearMissing() {
-    ['inLength', 'cName', 'cAddress'].forEach(function (id) { var el = $(id); if (el && el.value.trim()) el.classList.remove('missing'); });
+    ['inLength', 'dLength', 'dWidth', 'cName', 'cAddress'].forEach(function (id) { var el = $(id); if (el && el.value.trim()) el.classList.remove('missing'); });
     var m = missingRequired().filter(function (x) { return x.view === 'quote'; });
     if (!m.length) $('clientMissing').hidden = true;
     else if (!$('clientMissing').hidden) $('clientMissing').textContent = '⚠ Please enter the ' + m.map(function (x) { return x.label; }).join(' and ') + ' before you can preview, send or get it signed.';
@@ -847,7 +955,7 @@
     document.addEventListener('click', function (e) {
       var sq = e.target.closest('[data-savequote]');
       if (sq) {
-        var started = String(draft.input.length || '').trim() !== '' || draft.client.name.trim() !== '';
+        var started = String(draft.input.length || '').trim() !== '' || String(draft.deck.input.length || '').trim() !== '' || draft.client.name.trim() !== '';
         if (!started) { toast('Nothing to save yet – enter a length or client name first'); return; }
         var rs = saveAwaiting(); renderSaved();
         sq.textContent = '✓ Saved'; sq.classList.add('saved-flash');
@@ -868,7 +976,7 @@
       var fx = e.target.closest('[data-fix]');
       if (fx) {
         var id = fx.getAttribute('data-fix');
-        var view = { cName: 'quote', cAddress: 'quote', qScope: 'quote', inLength: 'measure', pTrading: 'settings', pBankAccNo: 'settings', pGstNo: 'settings' }[id];
+        var view = { cName: 'quote', cAddress: 'quote', qScope: 'quote', inLength: 'measure', dLength: 'measure', dWidth: 'measure', jobFence: 'measure', pTrading: 'settings', pBankAccNo: 'settings', pGstNo: 'settings' }[id];
         if (id === 'cName' || id === 'cAddress') { var mm = missingRequired().filter(function (x) { return x.id === id; }); if (!mm.length) mm = [{ id: id, view: view, label: id === 'cName' ? "client's name" : 'job address' }]; showMissing(mm.concat(missingRequired().filter(function (x) { return x.id !== id && x.view === 'quote'; }))); return; }
         var from = document.querySelector('.view.active').id.replace('view-', ''); go(view, true); if (view === 'settings') { setTab('profile'); fillProfile(); bizReturnTo = from; $('btnBizReturn').hidden = false; $('btnBizReturn').textContent = '← Back to your quote'; }
         var target = $(id); target.classList.add('missing');
@@ -881,7 +989,8 @@
       var rp = e.target.closest('[data-remove-person]'); if (rp) { draft.labour.splice(Number(rp.getAttribute('data-remove-person')), 1); renderLabour(); recalc(); return; }
       var re = e.target.closest('[data-remove-extra]'); if (re) { draft.extras.splice(Number(re.getAttribute('data-remove-extra')), 1); renderExtras(); recalc(); return; }
       var rec = e.target.closest('[data-rec]'); if (rec) { openRecord(rec.getAttribute('data-rec')); return; }
-      var rs = e.target.closest('[data-reset-price]'); if (rs) { delete priceOverrides[rs.getAttribute('data-reset-price')]; save(K.prices, priceOverrides); renderPrices(); fillPalingSelect(); recalc(); return; }
+      var rs = e.target.closest('[data-reset-price]'); if (rs) { delete priceOverrides[rs.getAttribute('data-reset-price')]; save(K.prices, priceOverrides); renderPrices(); fillPalingSelect(); fillDeckSelects(); recalc(); return; }
+      var db = e.target.closest('[data-del-board]'); if (db) { var bid = db.getAttribute('data-del-board'); customBoards = customBoards.filter(function (p) { return p.id !== bid; }); save(K.boards, customBoards); if (draft.deck.options.boardId === bid) draft.deck.options.boardId = D.deckDefaults.options.boardId; renderPrices(); fillDeckSelects(); recalc(); return; }
       var dp = e.target.closest('[data-del-paling]'); if (dp) { var id = dp.getAttribute('data-del-paling'); customPalings = customPalings.filter(function (p) { return p.id !== id; }); save(K.palings, customPalings); if (draft.options.palingId === id) draft.options.palingId = 'auto'; renderPalings(); fillPalingSelect(); recalc(); return; }
     });
     // measure inputs
@@ -900,6 +1009,32 @@
       fillPalingSelect(); renderPalings(); recalc();
       toast('✓ New paling saved and selected');
     });
+    // ---- jobs & deck ----
+    function jobChange() { draft.jobs.fence = $('jobFence').checked; draft.jobs.deck = $('jobDeck').checked; if (!draft.scopeEdited) draft.scope = ''; recalc(); if (!draft.scopeEdited) $('qScope').value = draft.scope; this.classList && this.classList.remove('missing'); clearMissing(); }
+    $('jobFence').addEventListener('change', jobChange); $('jobDeck').addEventListener('change', jobChange);
+    [['dLength', 'length'], ['dWidth', 'width'], ['dHeight', 'height']].forEach(function (p) { $(p[0]).addEventListener('input', function () { draft.deck.input[p[1]] = this.value; recalc(); }); });
+    $('dAttached').addEventListener('change', function () { draft.deck.options.attached = this.checked; recalc(); });
+    $('dBoard').addEventListener('change', function () { draft.deck.options.boardId = this.value; recalc(); });
+    $('dCentres').addEventListener('change', function () { draft.deck.options.joistCentres = Number(this.value); recalc(); });
+    $('dJoist').addEventListener('change', function () { draft.deck.options.joistId = this.value; recalc(); });
+    $('dBearer').addEventListener('change', function () { draft.deck.options.bearerId = this.value; recalc(); });
+    var dOptMap = { dCant: ['cantilever', 1], dGap: ['boardGapMm', 1], dEmbed: ['pileEmbed', 0.001], dHoleDia: ['pileHoleDia', 0.001], dBoardWaste: ['boardWastePct', 1], dTimberWaste: ['timberWastePct', 1], dFixWaste: ['fixingWastePct', 1], dScrews: ['screwsPerCrossing', 1], dTies: ['tiesPerCrossing', 1], dDogs: ['wireDogsPerPile', 1], dBolts: ['boltCentres', 1] };
+    Object.keys(dOptMap).forEach(function (id) { $(id).addEventListener('input', function () { var m = dOptMap[id]; draft.deck.options[m[0]] = this.value === '' ? D.deckDefaults.options[m[0]] : num(this.value, 0) * m[1]; recalc(); }); });
+    $('dFront').addEventListener('change', function () { draft.deck.options.frontBoundary = this.checked; recalc(); });
+    $('dCoastal').addEventListener('change', function () { draft.deck.options.coastal = this.checked; recalc(); });
+    $('btnResetDeckOpts').addEventListener('click', function () { var keep = { attached: draft.deck.options.attached, boardId: draft.deck.options.boardId, joistCentres: draft.deck.options.joistCentres, joistId: draft.deck.options.joistId, bearerId: draft.deck.options.bearerId }; draft.deck.options = Object.assign(clone(D.deckDefaults.options), keep); fillDeckInputs(); recalc(); toast('Deck options reset'); });
+    $('btnShowNewBoard').addEventListener('click', function () { $('newBoardBox').hidden = false; this.hidden = true; setTimeout(function () { $('dnbName').focus(); }, 30); });
+    $('btnCancelNewBoard').addEventListener('click', function () { $('newBoardBox').hidden = true; $('btnShowNewBoard').hidden = false; });
+    $('btnSaveNewBoard').addEventListener('click', function () {
+      var w = num($('dnbWidth').value, 0), th = num($('dnbThick').value, 32), pr = num($('dnbPrice').value, NaN);
+      if (!(w >= 40 && w <= 300)) { toast('Not saved: enter the board width in mm (40–300)'); return; }
+      if (!(pr >= 0)) { toast('Not saved: enter the price per metre'); return; }
+      var id = 'cb' + Date.now();
+      customBoards.push({ id: id, name: ($('dnbName').value.trim() || (w + ' × ' + th + ' decking')), widthMm: w, thicknessMm: th, price: pr, unit: 'lm', supplier: $('dnbSupplier').value.trim() || 'Custom', item: $('dnbItem').value.trim(), url: '', status: 'verified', checked: dateLabel(todayISO()), note: 'Added by you.' });
+      save(K.boards, customBoards); draft.deck.options.boardId = id;
+      ['dnbName', 'dnbWidth', 'dnbThick', 'dnbPrice', 'dnbSupplier', 'dnbItem'].forEach(function (x) { $(x).value = ''; });
+      $('newBoardBox').hidden = true; $('btnShowNewBoard').hidden = false; fillDeckSelects(); recalc(); toast('✓ New decking board saved and selected');
+    });
     var optMap = { optMaxCentres: ['maxCentres', 1], optEmbedment: ['embedment', 1], optHoleDia: ['holeDiameter', 0.001], optClearance: ['groundClearance', 0.001], optGap: ['palingGapMm', 1], optWaste: ['palingWastePct', 1], optFixWaste: ['fixingWastePct', 1], optNailsPer: ['nailsPerPalingPerRail', 1] };
     Object.keys(optMap).forEach(function (id) { $(id).addEventListener('input', function () { var m = optMap[id]; draft.options[m[0]] = this.value === '' ? this.value : num(this.value, 0) * m[1]; recalc(); }); });
     $('optRailRows').addEventListener('change', function () { draft.options.railRows = this.value; recalc(); });
@@ -910,7 +1045,8 @@
     // price edits (takeoff and settings)
     document.addEventListener('change', function (e) {
       var t = e.target;
-      if (t.hasAttribute('data-price-id')) { setOverride(t.getAttribute('data-price-id'), 'price', t.value); fillPalingSelect(); recalc(); if ($('view-settings').classList.contains('active')) renderPrices(); toast('Price saved for future quotes'); }
+      if (t.hasAttribute('data-sup-id')) { var so = priceOverrides[t.getAttribute('data-sup-id')] || {}; if (t.value.trim()) so.supplier = t.value.trim(); else delete so.supplier; priceOverrides[t.getAttribute('data-sup-id')] = so; save(K.prices, priceOverrides); fillPalingSelect(); fillDeckSelects(); recalc(); toast('Supplier saved'); }
+      if (t.hasAttribute('data-price-id')) { setOverride(t.getAttribute('data-price-id'), 'price', t.value); fillPalingSelect(); fillDeckSelects(); recalc(); if ($('view-settings').classList.contains('active')) renderPrices(); toast('Price saved for future quotes'); }
       if (t.hasAttribute('data-pack-id')) { setOverride(t.getAttribute('data-pack-id'), 'perPack', t.value); recalc(); }
       if (t.hasAttribute('data-yield-id')) { setOverride(t.getAttribute('data-yield-id'), 'yieldM3', t.value); recalc(); }
     });
@@ -930,12 +1066,12 @@
     $('inRound').addEventListener('change', function () { draft.roundTo = Number(this.value); recalc(); });
     // client & quote doc fields
     [['cName', 'name'], ['cAddress', 'address'], ['cPhone', 'phone'], ['cEmail', 'email']].forEach(function (p) { $(p[0]).addEventListener('input', function () { draft.client[p[1]] = this.value; saveDraft(); }); });
-    ['cName', 'cAddress', 'inLength', 'qScope', 'pTrading'].forEach(function (id) { var el = $(id); if (el) el.addEventListener('input', function () { if (this.value.trim()) this.classList.remove('missing'); clearMissing(); }); });
+    ['cName', 'cAddress', 'inLength', 'dLength', 'dWidth', 'qScope', 'pTrading'].forEach(function (id) { var el = $(id); if (el) el.addEventListener('input', function () { if (this.value.trim()) this.classList.remove('missing'); clearMissing(); }); });
     $('qRef').addEventListener('change', function () { var v = this.value.trim(); var r = findRecord(v); if (!v || (r && r.status === 'accepted')) { toast(v ? 'Ref ' + v + ' is already accepted. Pick another.' : 'Ref required'); this.value = draft.ref; return; } draft.ref = v; saveDraft(); $('refBadge').textContent = v; });
     $('qIssue').addEventListener('change', function () { draft.issueDate = this.value; draft.expiryDate = addDays(this.value, profile.validityDays || 30); $('qExpiry').value = draft.expiryDate; saveDraft(); });
     $('qExpiry').addEventListener('change', function () { draft.expiryDate = this.value; saveDraft(); });
     $('qScope').addEventListener('input', function () { draft.scope = this.value; draft.scopeEdited = true; saveDraft(); });
-    $('btnRegenScope').addEventListener('click', function (e) { e.preventDefault(); draft.scopeEdited = false; draft.scope = buildScope(calc); $('qScope').value = draft.scope; saveDraft(); toast('Scope rebuilt from takeoff'); });
+    $('btnRegenScope').addEventListener('click', function (e) { e.preventDefault(); draft.scopeEdited = false; draft.scope = buildScope(); $('qScope').value = draft.scope; saveDraft(); toast('Scope rebuilt from takeoff'); });
     $('qExclusions').addEventListener('input', function () { draft.exclusions = this.value; saveDraft(); });
     $('qTerms').addEventListener('input', function () { draft.paymentTerms = this.value; saveDraft(); });
     // send
@@ -957,7 +1093,7 @@
     // saved / record
     function startNew() { $('newDlg').hidden = true; document.querySelectorAll('.missing').forEach(function (el) { el.classList.remove('missing'); }); $('clientMissing').hidden = true; draft = newDraft(); saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc(); renderSaved(); go('measure'); window.scrollTo(0, 0); toast('New quote ' + draft.ref + ' started'); }
     function askNew() {
-      var started = String(draft.input.length || '').trim() !== '' || draft.client.name.trim() !== '' || draft.client.address.trim() !== '';
+      var started = String(draft.input.length || '').trim() !== '' || String(draft.deck.input.length || '').trim() !== '' || draft.client.name.trim() !== '' || draft.client.address.trim() !== '';
       if (!started) { startNew(); return; }
       var rec = findRecord(draft.ref);
       var who = draft.client.name.trim() ? ' for ' + draft.client.name.trim() : '';
@@ -1022,7 +1158,7 @@
     $('set-profile').addEventListener('change', function (e) { if (e.target.id === 'pGstReg') saveProfile(); });
     $('btnBizReturn').addEventListener('click', function () { saveProfile(); var to = bizReturnTo || 'quote'; this.hidden = true; bizReturnTo = null; recalc(); if (to === 'record' && currentRecordId) openRecord(currentRecordId); else go(to, true); toast('Back to your quote'); });
     $('pGstReg').addEventListener('change', function () { $('pGstNo').disabled = !this.checked; });
-    $('btnResetPrices').addEventListener('click', function () { priceOverrides = {}; save(K.prices, priceOverrides); renderPrices(); fillPalingSelect(); recalc(); toast('Prices reset to researched values'); });
+    $('btnResetPrices').addEventListener('click', function () { priceOverrides = {}; save(K.prices, priceOverrides); renderPrices(); fillPalingSelect(); fillDeckSelects(); recalc(); toast('Prices reset to researched values'); });
     $('btnAddPaling').addEventListener('click', function () {
       var err = addPaling({ name: $('npName').value, length_mm: $('npLen').value, width_mm: $('npWidth').value, price: $('npPrice').value, supplier: $('npSupplier').value, item: $('npItem').value, url: $('npUrl').value });
       if (err) { toast('Not added: ' + err); return; }

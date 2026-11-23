@@ -1,5 +1,7 @@
 # Fence Quote NZ
 
+**Live app:** https://slatersconstruction-beep.github.io/fence-quote-nz/
+
 Mobile-first web app for Slaters Construction: quote a straight timber paling fence onsite, turn it into a client quote, take acceptance on the phone, and send a real PDF by WhatsApp or email.
 
 - Plain HTML/CSS/JS, no server, no account. PDF built on the phone with jsPDF (bundled in `vendor/`, works offline).

@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.4.0';
+  var APP_VERSION = '1.5.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -600,8 +600,49 @@
     if (!m.length) $('clientMissing').hidden = true;
     else if (!$('clientMissing').hidden) $('clientMissing').textContent = '⚠ Please enter the ' + m.map(function (x) { return x.label; }).join(' and ') + ' before you can preview, send or get it signed.';
   }
+  // ---------------- voice dictation (Web Speech API) ----------------
+  var dict = { rec: null, btn: null, target: null, label: '' };
+  function speechCtor() { return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
+  function stopDictation() { if (dict.rec) { try { dict.rec.stop(); } catch (e) {} } }
+  function dictationEnded() {
+    if (dict.btn) { dict.btn.classList.remove('listening'); dict.btn.textContent = dict.label; }
+    dict.rec = null; dict.btn = null; dict.target = null;
+  }
+  function appendSpoken(ta, text) {
+    text = String(text || '').trim(); if (!text) return;
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+    if (!/[.!?]$/.test(text)) text += '.';
+    var cur = ta.value.replace(/\s+$/, '');
+    if (ta.id === 'qExclusions') ta.value = (cur ? cur + '\n' : '') + text;
+    else ta.value = cur ? cur + (/[.!?:]$/.test(cur) ? ' ' : '. ') + text : text;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  function toggleDictation(btn) {
+    if (dict.rec) { var same = dict.btn === btn; stopDictation(); if (same) return; }
+    var ta = $(btn.getAttribute('data-dictate'));
+    var Ctor = speechCtor();
+    if (!Ctor) {
+      toast('Voice button not supported here: tap the box and use the 🎤 key on your keyboard');
+      try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
+      return;
+    }
+    var rec; try { rec = new Ctor(); } catch (e) { toast('Voice not available: use the 🎤 key on your keyboard'); ta.focus(); return; }
+    rec.lang = 'en-NZ'; rec.continuous = true; rec.interimResults = false; rec.maxAlternatives = 1;
+    rec.onresult = function (ev) { for (var i = ev.resultIndex; i < ev.results.length; i++) { if (ev.results[i].isFinal) appendSpoken(ta, ev.results[i][0].transcript); } };
+    rec.onerror = function (ev) {
+      var m = { 'not-allowed': 'Microphone blocked: allow the microphone for this app in your phone settings, or use the 🎤 key on your keyboard', 'service-not-allowed': 'Voice not allowed here: use the 🎤 key on your keyboard', 'no-speech': 'Didn\'t hear anything – tap 🎤 and try again', 'network': 'Voice needs internet – or use the 🎤 key on your keyboard', 'audio-capture': 'No microphone found' }[ev.error];
+      if (m) toast(m);
+    };
+    rec.onend = dictationEnded;
+    dict = { rec: rec, btn: btn, target: ta, label: btn.getAttribute('data-label') || btn.textContent };
+    btn.setAttribute('data-label', dict.label);
+    try { rec.start(); } catch (e) { dictationEnded(); toast('Voice not available: use the 🎤 key on your keyboard'); return; }
+    btn.classList.add('listening'); btn.textContent = '■ Listening… tap to stop';
+  }
+
   var bizReturnTo = null;
   function go(view, skipCheck) {
+    stopDictation();
     if (view === 'send' && !skipCheck) { var miss = missingRequired(); if (miss.length) { showMissing(miss); return; } }
     document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + view); });
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-goto') === view || (view === 'record' && t.getAttribute('data-goto') === 'saved')); });
@@ -621,6 +662,8 @@
   // ---------------- events ----------------
   function bind() {
     document.addEventListener('click', function (e) {
+      var dk = e.target.closest('[data-dictate]');
+      if (dk) { toggleDictation(dk); return; }
       var be = e.target.closest('[data-bizedit]');
       if (be) {
         bizReturnTo = document.querySelector('.view.active').id.replace('view-', '');

@@ -201,3 +201,17 @@ input.missing, textarea.missing { border: 2px solid var(--bad) !important; backg
 #bizSummary { margin: 0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.back-btn { color: var(--ink); } }
 :root[data-theme="dark"] .btn.back-btn { color: var(--ink); }
+
+/* ---------- Dictation ---------- */
+.dictate-row { margin: -4px 0 4px; }
+.btn.mic-btn { border: 2px solid var(--brand); color: var(--brand); background: var(--card); font-weight: 700; }
+.btn.mic-btn.listening { background: #b3261e; border-color: #b3261e; color: #fff; animation: micpulse 1.2s ease-in-out infinite; }
+@keyframes micpulse { 50% { opacity: .75; } }
+.dictate-tip { margin-top: 4px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.mic-btn:not(.listening) { color: var(--ink); } }
+:root[data-theme="dark"] .btn.mic-btn:not(.listening) { color: var(--ink); }
+/* narrow phones: quote ref on its own row, dates side by side */
+.grid2 > *, .grid3 > * { min-width: 0; }
+@media (max-width: 560px) { .grid3 { grid-template-columns: 1fr 1fr; } .grid3 > :first-child { grid-column: 1 / -1; } }
+input[type="date"] { min-width: 0; max-width: 100%; }
+@media (max-width: 560px) { .person .grid3 { grid-template-columns: 1fr 1fr 1fr; } .person .grid3 > :first-child { grid-column: auto; } }

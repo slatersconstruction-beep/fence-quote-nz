@@ -134,7 +134,10 @@
       </div>
       <label class="field">Scope of works <button type="button" class="link-btn" id="btnRegenScope">↻ Rebuild from takeoff</button>
         <textarea id="qScope" rows="7"></textarea></label>
+      <div class="dictate-row"><button type="button" class="btn mic-btn" data-dictate="qScope">🎤 Speak the scope</button></div>
+      <p class="small muted dictate-tip">Tap 🎤 and talk; your words are added to the end of the box. Tap again to stop. If the button doesn't work on your phone, tap inside the box and press the 🎤 microphone key on your phone keyboard instead.</p>
       <label class="field">Exclusions (one per line)<textarea id="qExclusions" rows="6"></textarea></label>
+      <div class="dictate-row"><button type="button" class="btn mic-btn small" data-dictate="qExclusions">🎤 Speak an exclusion</button></div>
       <label class="field">Payment terms<textarea id="qTerms" rows="3"></textarea></label>
     </div>
     <div class="sticky-cta two"><button class="btn back-btn" type="button" data-goto="measure">← Back</button><button class="btn primary" type="button" data-goto="send">Next: preview &amp; send →</button></div>

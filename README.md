@@ -14,7 +14,7 @@ Mobile-first web app for Slaters Construction: quote a straight timber paling fe
 **Android (Chrome):** open the link → ⋮ menu → *Add to Home screen* / *Install app* → Install.
 
 ## 10-minute phone test script
-1. Settings → Business: enter your real details (GST number optional) → Save.
+1. Tap **✎ My business details** (top of the Measure screen) and enter your real details (GST number optional). They save automatically; tap **← Back to your quote** when done.
 2. Settings → Prices: tap each item marked **estimate**, check the Bunnings page, type the shelf price.
 3. Measure: length `12`, height `1.8`. Check posts 6 @ 2.400 m, 3 rail rows, 80 palings installed / 88 to buy, nails, screws, concrete.
 4. Paling → choose the 2400 mm paling; open Estimating options, change embedment 0.6 → 0.9: post goes 2.4 → 2.7 m and concrete bags go up.

@@ -24,6 +24,7 @@
 <main id="app">
   <!-- ================= MEASURE ================= -->
   <section id="view-measure" class="view active" aria-label="Measure and price">
+    <div class="stepbar"><span class="step-now">Step 1 of 3 · Measure</span><button class="btn small ghost biz-btn" type="button" data-bizedit>✎ My business details</button></div>
     <div class="card hero">
       <div class="grid2">
         <label class="big-input">Fence length <span class="unit">m</span>
@@ -83,6 +84,11 @@
 
   <!-- ================= QUOTE ================= -->
   <section id="view-quote" class="view" aria-label="Quote">
+    <div class="stepbar"><button class="btn small back-btn" type="button" data-goto="measure">← Back to Measure</button><span class="step-now">Step 2 of 3 · Quote</span></div>
+    <div class="card biz-card">
+      <div class="card-head"><h2>Your business details</h2><button class="btn small" type="button" data-bizedit>✎ Edit</button></div>
+      <p class="small" id="bizSummary"></p>
+    </div>
     <div class="card">
       <div class="card-head"><h2>Materials</h2><span id="qMaterials" class="pill"></span></div>
       <p class="small muted" id="qMaterialsBasis"></p>
@@ -131,12 +137,13 @@
       <label class="field">Exclusions (one per line)<textarea id="qExclusions" rows="6"></textarea></label>
       <label class="field">Payment terms<textarea id="qTerms" rows="3"></textarea></label>
     </div>
-    <div class="sticky-cta"><button class="btn primary block" type="button" data-goto="send">Next: preview &amp; send →</button></div>
+    <div class="sticky-cta two"><button class="btn back-btn" type="button" data-goto="measure">← Back</button><button class="btn primary" type="button" data-goto="send">Next: preview &amp; send →</button></div>
   </section>
 
   <!-- ================= SEND ================= -->
   <section id="view-send" class="view" aria-label="Preview and send">
-    <button class="btn ghost small" type="button" data-goto="quote" id="btnBackQuote">← Back to Quote (edit client, price, scope)</button>
+    <div class="stepbar"><button class="btn small back-btn" type="button" data-goto="quote" id="btnBackQuote">← Back to Quote</button><button class="btn small ghost" type="button" data-goto="measure">← Measure</button><span class="step-now">Step 3 of 3</span></div>
+    <button class="btn small ghost biz-btn mt" type="button" data-bizedit>✎ Edit my business details</button>
     <div id="sendProblems" class="mt"></div>
     <div class="card actions-card">
       <div id="docStatus" class="status-banner"></div>
@@ -190,7 +197,7 @@
   <!-- ================= SETTINGS ================= -->
   <section id="view-settings" class="view" aria-label="Settings">
     <div class="seg" role="tablist">
-      <button type="button" class="seg-btn active" data-settab="profile">Business</button>
+      <button type="button" class="seg-btn active" data-settab="profile">My business</button>
       <button type="button" class="seg-btn" data-settab="prices">Prices</button>
       <button type="button" class="seg-btn" data-settab="palings">Palings</button>
       <button type="button" class="seg-btn" data-settab="rules">Rules</button>
@@ -199,8 +206,9 @@
 
     <div class="settab active" id="set-profile">
       <div class="card">
-        <h2>Business profile</h2>
-        <p class="small muted">Saved on this phone and used on every new quote. Changing it never changes accepted quotes.</p>
+        <button class="btn small back-btn" type="button" id="btnBizReturn" hidden>← Back to your quote</button>
+        <h2>My business details</h2>
+        <p class="small muted">These appear at the top of every quote and PDF. Saved on this phone and used on every new quote. Changing it never changes accepted quotes.</p>
         <label class="field">Trading name<input id="pTrading" type="text"></label>
         <label class="field">Legal entity name (if different)<input id="pLegal" type="text" placeholder="e.g. Slaters Construction Limited"></label>
         <label class="field">Contact person<input id="pContact" type="text"></label>
@@ -220,7 +228,7 @@
         </div>
         <label class="field">Default payment terms<textarea id="pTerms" rows="3"></textarea></label>
         <label class="field">Default exclusions (one per line)<textarea id="pExclusions" rows="6"></textarea></label>
-        <button class="btn primary block" id="btnSaveProfile" type="button">Save business profile</button>
+        <button class="btn primary block" id="btnSaveProfile" type="button">Save my business details</button>
         <p id="profileSaved" class="small ok-text"></p>
       </div>
     </div>

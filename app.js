@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.3.0';
+  var APP_VERSION = '1.4.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -176,7 +176,12 @@
         '<div class="grid2" style="margin-top:8px"><label class="small muted">Amount $' + (profile.gstRegistered ? ' (excl GST)' : '') + '<input data-f="amount" type="number" inputmode="decimal" step="0.01" value="' + esc(e.amount) + '"></label></div></div>';
     }).join('') || '<p class="small muted">No extras.</p>';
   }
+  function renderBizSummary() {
+    var b = profile, bits = [b.contactPerson, b.phone, b.email, b.address, b.gstRegistered ? (b.gstNumber ? 'GST ' + b.gstNumber : 'GST registered (no GST number entered)') : 'Not GST registered'].filter(Boolean);
+    $('bizSummary').innerHTML = '<b>' + esc(b.tradingName || 'No business name yet') + '</b>' + (bits.length ? '<br>' + bits.map(esc).join(' · ') : '') + '<br><span class="muted">Shown at the top of the quote and PDF.</span>';
+  }
   function renderQuote() {
+    renderBizSummary();
     var p = pricing;
     $('qMaterials').textContent = money(calc.ok ? calc.total : 0);
     $('qMaterialsBasis').innerHTML = calc.ok
@@ -232,12 +237,12 @@
   function problems() {
     var out = [];
     if (!calc.ok) out.push('Takeoff has a problem (see Measure tab): ' + (calc.errors[0] || 'enter length and height'));
-    if (!profile.tradingName) out.push('Add your trading name in Settings → Business.');
+    if (!profile.tradingName) out.push('Add your business name in My business details.');
     if (!draft.client.name.trim()) out.push('Enter the client name on the Quote tab.');
     if (!draft.client.address.trim()) out.push('Enter the job address on the Quote tab.');
     if (!draft.scope.trim()) out.push('Scope of works is empty.');
     if (!(pricing.clientPrice > 0)) out.push('Price is $0.');
-    if (profile.gstRegistered && !profile.gstNumber) out.push('Tip: add your GST number in Settings → Business (optional on a quote).');
+    if (profile.gstRegistered && !profile.gstNumber) out.push('Tip: add your GST number in My business details (optional on a quote).');
     return out;
   }
   function blocking() { return problems().filter(function (p) { return p.indexOf('Tip:') !== 0; }); }
@@ -471,7 +476,7 @@
     if (draft.paymentTerms === oldTerms) draft.paymentTerms = profile.paymentTerms;
     if (draft.exclusions === oldExcl) draft.exclusions = profile.exclusions;
     fillQuoteInputs(); recalc();
-    $('profileSaved').textContent = '✓ Saved ' + dateTimeLabel(new Date()) + '. Used for new quotes; accepted quotes keep their original details.';
+    $('profileSaved').textContent = '✓ Saved ' + dateTimeLabel(new Date()) + '. Changes save automatically. Accepted quotes keep their original details.';
   }
   function allPriceItems() {
     var cat = catalogue();
@@ -595,6 +600,7 @@
     if (!m.length) $('clientMissing').hidden = true;
     else if (!$('clientMissing').hidden) $('clientMissing').textContent = '⚠ Please enter the ' + m.map(function (x) { return x.label; }).join(' and ') + ' before you can preview, send or get it signed.';
   }
+  var bizReturnTo = null;
   function go(view, skipCheck) {
     if (view === 'send' && !skipCheck) { var miss = missingRequired(); if (miss.length) { showMissing(miss); return; } }
     document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + view); });
@@ -615,6 +621,14 @@
   // ---------------- events ----------------
   function bind() {
     document.addEventListener('click', function (e) {
+      var be = e.target.closest('[data-bizedit]');
+      if (be) {
+        bizReturnTo = document.querySelector('.view.active').id.replace('view-', '');
+        go('settings'); setTab('profile'); fillProfile();
+        $('btnBizReturn').hidden = !(bizReturnTo === 'measure' || bizReturnTo === 'quote' || bizReturnTo === 'send');
+        $('btnBizReturn').textContent = '← Back to your quote (' + ({ measure: 'Measure', quote: 'Quote', send: 'Send' }[bizReturnTo] || '') + ')';
+        return;
+      }
       var fx = e.target.closest('[data-fix]');
       if (fx) {
         var id = fx.getAttribute('data-fix');
@@ -721,6 +735,10 @@
     });
     // settings
     $('btnSaveProfile').addEventListener('click', saveProfile);
+    var profTimer = null;
+    $('set-profile').addEventListener('input', function (e) { if (!e.target.matches('input, textarea')) return; clearTimeout(profTimer); profTimer = setTimeout(saveProfile, 500); });
+    $('set-profile').addEventListener('change', function (e) { if (e.target.id === 'pGstReg') saveProfile(); });
+    $('btnBizReturn').addEventListener('click', function () { saveProfile(); var to = bizReturnTo || 'quote'; this.hidden = true; bizReturnTo = null; recalc(); go(to, true); toast('Back to your quote'); });
     $('pGstReg').addEventListener('change', function () { $('pGstNo').disabled = !this.checked; });
     $('btnResetPrices').addEventListener('click', function () { priceOverrides = {}; save(K.prices, priceOverrides); renderPrices(); fillPalingSelect(); recalc(); toast('Prices reset to researched values'); });
     $('btnAddPaling').addEventListener('click', function () {

@@ -1,7 +1,8 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.0.0';
+  var APP_VERSION = '1.1.0';
+  function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
   var K = { profile: 'fq_profile', draft: 'fq_draft', prices: 'fq_prices', palings: 'fq_palings', records: 'fq_records', counter: 'fq_counter' };
@@ -18,7 +19,7 @@
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function money(n) { return '$' + Number(n || 0).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function money(n) { n = Number(n || 0); return (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function num(v, d) { var n = parseFloat(v); return isFinite(n) ? n : d; }
 
   // ---------------- dates (NZ time) ----------------
@@ -53,7 +54,7 @@
     var issue = todayISO();
     return {
       id: 'd' + Date.now(), ref: nextRef(), input: { length: '', height: 1.8 }, options: clone(D.defaults.options),
-      labour: [{ name: (profile.contactPerson || 'Me'), hours: 8, rate: 75 }], extras: [], marginPct: 10, roundTo: 0,
+      labour: [{ name: (profile.contactPerson || 'Me'), hours: 8, rate: 75 }], extras: [], marginPct: 10, roundTo: 0, discountPct: 0,
       client: { name: '', address: '', phone: '', email: '' }, issueDate: issue, expiryDate: addDays(issue, profile.validityDays || 30),
       scope: '', scopeEdited: false, exclusions: profile.exclusions, paymentTerms: profile.paymentTerms, optVer: 2
     };
@@ -98,7 +99,7 @@
   function recalc() {
     calc = C.takeoff(draft.input, draft.options, catalogue());
     var mat = calc.ok ? calc.total : 0;
-    pricing = C.price(mat, draft.labour, draft.extras, { gstRegistered: profile.gstRegistered, marginPct: draft.marginPct, roundTo: draft.roundTo });
+    pricing = C.price(mat, draft.labour, draft.extras, { gstRegistered: profile.gstRegistered, marginPct: draft.marginPct, roundTo: draft.roundTo, discountPct: draft.discountPct });
     if (!draft.scopeEdited && calc.ok) draft.scope = buildScope(calc);
     saveDraft();
     renderMeasure(); renderQuote(); renderSendIfVisible();
@@ -194,14 +195,16 @@
     rows.push(['Extras', money(p.extrasTotal)], ['Total cost', money(p.cost)], ['Margin ' + p.marginPct + '%', money(p.margin)]);
     if (p.registered) rows.push(['Price excl GST', money(p.priceExGst)], ['GST 15% (added once)', money(p.gst)]);
     if (p.roundingAdj) rows.push(['Rounding', money(p.roundingAdj), 'sub']);
+    if (p.discountPct > 0) rows.push(['Price before discount' + (p.registered ? ' incl GST' : ''), money(p.listPrice)], ['Discount ' + fmtPct(p.discountPct) + ' (shown to client)', '−' + money(p.discountAmount)]);
     rows.push(['Client fixed price' + (p.registered ? ' incl GST' : ' (no GST)'), money(p.clientPrice), 'total']);
-    rows.push(['Your estimated profit (margin + rounding, excl GST)', money(p.profit), 'sub']);
+    rows.push(['Your estimated profit (margin + rounding' + (p.discountPct > 0 ? ' − discount' : '') + ', excl GST)', money(p.profit), 'sub']);
     $('pricingTable').innerHTML = '<table class="ptable">' + rows.map(function (r) { return '<tr class="' + (r[2] || '') + '"><td>' + esc(r[0]) + '</td><td class="r">' + r[1] + '</td></tr>'; }).join('') + '</table>' +
-      '<p class="small muted">The client sees only the fixed price' + (p.registered ? ' and its GST component' : '') + '. Labour rates, material costs and margin are never shown on the quote or PDF.</p>';
+      '<p class="small muted">The client sees only the fixed price' + (p.registered ? ' and its GST component' : '') + '. Labour rates, material costs and margin are never shown on the quote or PDF.</p>' +
+      (p.discountPct > 0 && p.profit < 0 ? '<p class="small"><span class="tag consent">Check</span> With this discount the job is below cost: you would lose ' + money(-p.profit) + ' (excl GST).</p>' : '');
   }
   function fillQuoteInputs() {
     renderLabour(); renderExtras();
-    $('inMargin').value = draft.marginPct; $('inRound').value = String(draft.roundTo || 0);
+    $('inMargin').value = draft.marginPct; $('inRound').value = String(draft.roundTo || 0); $('inDiscount').value = draft.discountPct ? draft.discountPct : '';
     $('cName').value = draft.client.name; $('cAddress').value = draft.client.address; $('cPhone').value = draft.client.phone; $('cEmail').value = draft.client.email;
     $('qRef').value = draft.ref; $('qIssue').value = draft.issueDate; $('qExpiry').value = draft.expiryDate;
     $('qScope').value = draft.scope; $('qExclusions').value = draft.exclusions; $('qTerms').value = draft.paymentTerms;
@@ -220,6 +223,7 @@
       paymentTerms: draft.paymentTerms,
       price: {
         amount: p.clientPrice, gstRegistered: p.registered, gst: p.clientGst, exGst: p.clientExGst,
+        discountPct: p.discountPct || 0, listPrice: p.listPrice, discountAmount: p.discountAmount,
         gstLine: p.registered ? 'Price includes GST at 15%.' + (profile.gstNumber ? ' GST No ' + profile.gstNumber + '.' : '') : 'No GST charged: ' + (profile.tradingName || 'the contractor') + ' is not registered for GST.'
       },
       acceptance: null
@@ -248,7 +252,7 @@
       '<h4>Scope of works</h4><p>' + esc(doc.scope) + '</p>' +
       '<h4>Exclusions</h4><ul>' + (doc.exclusions.length ? doc.exclusions.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') : '<li>None stated</li>') + '</ul>' +
       '<h4>Payment terms</h4><p>' + esc(doc.paymentTerms || '-') + '</p>' +
-      '<div class="d-price"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><b>FIXED PRICE</b><span class="amt">' + money(p.amount) + (p.gstRegistered ? ' <small>incl GST</small>' : '') + '</span></div>' +
+      '<div class="d-price">' + (p.discountPct > 0 ? '<div class="d-disc"><span>Price</span><span class="was">' + money(p.listPrice) + '</span></div><div class="d-disc save"><span>Discount ' + fmtPct(p.discountPct) + '</span><span>−' + money(p.discountAmount) + '</span></div>' : '') + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><b>' + (p.discountPct > 0 ? 'FIXED PRICE AFTER DISCOUNT' : 'FIXED PRICE') + '</b><span class="amt">' + money(p.amount) + (p.gstRegistered ? ' <small>incl GST</small>' : '') + '</span></div>' +
       (p.gstRegistered ? '<div class="small">Price excluding GST ' + money(p.exGst) + ' · GST (15%) ' + money(p.gst) + '</div>' : '') + '<div class="small">' + esc(p.gstLine) + '</div></div>' +
       '<h4>Acceptance</h4>' + (a ? (a.signature ? '<img class="d-sig" alt="Client signature" src="' + esc(a.signature) + '">' : '') + '<p><b>Accepted by:</b> ' + esc(a.name) + '<br><b>Date and time:</b> ' + esc(a.atLabel) + '<br><span class="small">Ticked: "' + esc(a.statement) + '"</span><br><span class="small" style="word-break:break-all">Record fingerprint (SHA-256): ' + esc(a.hash) + '</span></p>' : '<p>Not yet accepted.</p>') +
       '<div class="d-foot">This is a quote, not a tax invoice.</div>';
@@ -615,6 +619,7 @@
     });
     $('btnAddExtra').addEventListener('click', function () { draft.extras.push({ desc: '', amount: '' }); renderExtras(); recalc(); });
     $('inMargin').addEventListener('input', function () { draft.marginPct = num(this.value, 0); recalc(); });
+    $('inDiscount').addEventListener('input', function () { draft.discountPct = Math.min(100, Math.max(0, num(this.value, 0))); recalc(); });
     $('inRound').addEventListener('change', function () { draft.roundTo = Number(this.value); recalc(); });
     // client & quote doc fields
     [['cName', 'name'], ['cAddress', 'address'], ['cPhone', 'phone'], ['cEmail', 'email']].forEach(function (p) { $(p[0]).addEventListener('input', function () { draft.client[p[1]] = this.value; saveDraft(); }); });

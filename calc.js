@@ -197,13 +197,22 @@
     var roundTo = Number(opt.roundTo) || 0;
     var clientPrice = priceIncl;
     if (roundTo > 0) clientPrice = Math.ceil(priceIncl / roundTo - 1e-9) * roundTo;
+    clientPrice = r2(clientPrice);
+    // Discount: a % off the client price (incl GST if registered), shown to the client.
+    var discountPct = Math.min(100, Math.max(0, Number(opt.discountPct) || 0));
+    var listPrice = clientPrice;
+    var discountAmount = r2(listPrice * discountPct / 100);
+    clientPrice = r2(listPrice - discountAmount);
+    var listGst = registered ? r2(listPrice * 3 / 23) : 0;
     var clientGst = registered ? r2(clientPrice * 3 / 23) : 0;
     var clientExGst = r2(clientPrice - clientGst);
     return {
       registered: registered, labourLines: labourLines, labourTotal: labourTotal, extrasTotal: extrasTotal,
       materialsInclGst: r2(materialsInclGst), materialsCost: materialsCost, materialsGstClaimable: materialsGstClaimable,
       cost: cost, marginPct: marginPct, margin: margin, priceExGst: priceExGst, gst: gst, priceIncl: priceIncl,
-      roundingAdj: r2(clientPrice - priceIncl), clientPrice: r2(clientPrice), clientGst: clientGst, clientExGst: clientExGst,
+      roundingAdj: r2(listPrice - priceIncl), listPrice: listPrice, listExGst: r2(listPrice - listGst),
+      discountPct: discountPct, discountAmount: discountAmount, discountExGst: r2(discountAmount - (listGst - clientGst)),
+      clientPrice: clientPrice, clientGst: clientGst, clientExGst: clientExGst,
       profit: r2(clientExGst - cost)
     };
   }

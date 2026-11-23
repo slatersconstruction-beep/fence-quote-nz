@@ -100,11 +100,23 @@
 
     // ---------- Price ----------
     var p = doc.price;
-    var boxH = p.gstRegistered ? 26 : 22;
+    var disc = p.discountPct > 0;
+    var boxH = (p.gstRegistered ? 26 : 22) + (disc ? 13 : 0);
     ensure(boxH + 8); y += 3;
     pdf.setDrawColor.apply(pdf, green); pdf.setLineWidth(0.6); pdf.roundedRect(M, y, CW, boxH, 2, 2, 'S'); pdf.setLineWidth(0.2);
+    var y0 = y;
+    if (disc) {
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10.5); pdf.setTextColor(27, 31, 28);
+      pdf.text('Price', M + 4, y + 6);
+      pdf.text(latin(money(p.listPrice) + (p.gstRegistered ? ' incl GST' : '')), W - M - 4, y + 6, { align: 'right' });
+      pdf.setFont('helvetica', 'bold'); pdf.setTextColor.apply(pdf, green);
+      pdf.text(latin('Discount ' + (Math.round(p.discountPct * 100) / 100) + '%'), M + 4, y + 11.5);
+      pdf.text(latin('-' + money(p.discountAmount)), W - M - 4, y + 11.5, { align: 'right' });
+      pdf.setDrawColor(200, 205, 200); pdf.line(M + 4, y + 13.5, W - M - 4, y + 13.5); pdf.setDrawColor.apply(pdf, green);
+      y += 13;
+    }
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(27, 31, 28);
-    pdf.text('FIXED PRICE', M + 4, y + 7);
+    pdf.text(disc ? 'FIXED PRICE AFTER DISCOUNT' : 'FIXED PRICE', M + 4, y + 7);
     pdf.setFontSize(20); pdf.text(latin(money(p.amount) + (p.gstRegistered ? ' incl GST' : '')), W - M - 4, y + 9, { align: 'right' });
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5);
     if (p.gstRegistered) {
@@ -113,7 +125,7 @@
     } else {
       pdf.text(latin(p.gstLine), M + 4, y + 16);
     }
-    y += boxH + 4;
+    y = y0 + boxH + 4;
 
     // ---------- Acceptance ----------
     ensure(acc ? (acc.signature ? 62 : 36) : 34);

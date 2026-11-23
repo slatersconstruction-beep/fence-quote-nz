@@ -103,6 +103,8 @@
         <label class="field">Margin (% on cost)<input id="inMargin" type="number" inputmode="decimal" step="1" min="0"></label>
         <label class="field">Round client price up to<select id="inRound"><option value="0">No rounding</option><option value="1">Nearest $1</option><option value="10">Nearest $10</option><option value="50">Nearest $50</option></select></label>
       </div>
+      <label class="field mt">Discount for the client (%)<input id="inDiscount" type="number" inputmode="decimal" step="0.5" min="0" max="100" placeholder="0"></label>
+      <p class="small muted" id="discountNote">Optional. Type any percentage, e.g. 5. The client sees the full price, the discount and the new price on the quote and PDF. Leave at 0 for no discount.</p>
     </div>
 
     <div class="card private">

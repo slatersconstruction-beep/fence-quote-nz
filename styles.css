@@ -153,6 +153,9 @@ table.ptable tr.sub td { color: var(--muted); font-size: 13px; }
 .doc ul { margin: 4px 0; padding-left: 20px; }
 .doc .d-price { margin-top: 14px; border: 2px solid #1f5130; border-radius: 8px; padding: 12px; }
 .doc .d-price .amt { font-size: 26px; font-weight: 800; }
+.doc .d-disc { display: flex; justify-content: space-between; font-size: 15px; }
+.doc .d-disc .was { text-decoration: line-through; opacity: .75; }
+.doc .d-disc.save { color: #1f7a3d; font-weight: 700; border-bottom: 1px solid rgba(127,127,127,.35); padding-bottom: 6px; margin-bottom: 6px; }
 .doc .d-foot { margin-top: 16px; font-size: 11px; color: #5d665f; border-top: 1px solid #ddd; padding-top: 8px; }
 /* ---------- Client overlay ---------- */
 .overlay { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; }

@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '2.0.0';
+  var APP_VERSION = '2.1.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -138,7 +138,7 @@
   function fillPalingSelect() {
     var cat = catalogue(), sel = $('selPaling');
     sel.innerHTML = '<option value="auto">Auto – shortest paling long enough</option>' + cat.palings.map(function (p) {
-      return '<option value="' + esc(p.id) + '">' + esc(p.name) + ' – ' + money(p.price) + (p.item ? ' (I/N ' + esc(p.item) + ')' : '') + '</option>';
+      return '<option value="' + esc(p.id) + '">' + esc(p.name) + ' – ' + money(p.price) + (p.supplier ? ' · ' + esc(p.supplier) : '') + '</option>';
     }).join('');
     sel.value = cat.palings.some(function (p) { return p.id === draft.options.palingId; }) ? draft.options.palingId : 'auto';
   }
@@ -495,9 +495,9 @@
   function renderSaved() {
     var list = records.slice().sort(function (a, b) { return (b.updatedAt || '').localeCompare(a.updatedAt || ''); });
     $('savedList').innerHTML = list.length ? list.map(function (r) {
-      return '<button type="button" class="saved-item" data-rec="' + esc(r.id) + '"><div class="s-top"><span>' + esc(r.ref) + ' · ' + esc(r.doc.client.name || 'No name') + '</span><span class="badge ' + r.status + '">' + (r.status === 'accepted' ? 'Accepted' : 'Awaiting') + '</span></div>' +
+      return '<button type="button" class="saved-item" data-rec="' + esc(r.id) + '"><div class="s-top"><span>' + esc(r.ref) + ' · ' + esc(r.doc.client.name || 'No name') + '</span><span class="badge ' + r.status + '">' + (r.status === 'accepted' ? 'Accepted' : 'Saved – not signed') + '</span></div>' +
         '<div class="s-sub">' + esc(r.doc.client.address || '') + '</div><div class="s-sub">' + money(r.doc.price.amount) + (r.doc.schedule ? ' · start ' + esc(r.doc.schedule.startDate ? dateLabel(r.doc.schedule.startDate) : 'TBC') + (r.doc.schedule.durationDays ? ', ' + r.doc.schedule.durationDays + ' day' + (r.doc.schedule.durationDays === 1 ? '' : 's') : '') : '') + ' · ' + (r.status === 'accepted' ? 'accepted by ' + esc(r.doc.acceptance.name) + ', ' + esc(r.doc.acceptance.atLabel) : 'saved ' + esc(dateTimeLabel(r.updatedAt))) + '</div></button>';
-    }).join('') : '<p class="muted">No saved quotes yet. A quote is saved when you share, download or open its PDF, or when a client accepts it.</p>';
+    }).join('') : '<p class="muted">No saved quotes yet. Tap 💾 Save quote on the Quote screen to keep one and finish it later. Quotes are also saved when you share or download the PDF, or when a client accepts.</p>';
   }
   var deleteArmed = false;
   // ---------------- invoices ----------------
@@ -575,12 +575,18 @@
     $('recStatus').className = 'status-banner ' + r.status;
     $('recStatus').textContent = r.status === 'accepted' ? '✔ Accepted by ' + r.doc.acceptance.name + ' · ' + r.doc.acceptance.atLabel + ' · locked' : 'Awaiting acceptance · last saved ' + dateTimeLabel(r.updatedAt);
     $('recEdit').hidden = r.status === 'accepted';
+    $('recEdit').textContent = '✏️ Open and keep editing this quote';
+    var eb = $('recEdit'); if (r.status !== 'accepted') { eb.className = 'btn primary block'; eb.parentNode.insertBefore(eb, eb.parentNode.firstChild); } else { eb.className = 'btn block'; }
     invSel = 0; $('invHelp').innerHTML = ''; renderInvoices(r);
     $('recHelp').innerHTML = r.status === 'accepted' ? '<p class="small muted">This is the exact version the client accepted. It cannot be edited; later price or business changes do not affect it. Use "Copy into a new quote" to change anything.</p>' : '';
     go('record');
   }
   function currentRecord() { return records.filter(function (x) { return x.id === currentRecordId; })[0]; }
   function loadIntoEditor(r, asNew) {
+    // keep whatever is on screen safe before opening another quote
+    var started = String(draft.input.length || '').trim() !== '' || draft.client.name.trim() !== '';
+    var cur = findRecord(draft.ref);
+    if (started && draft.ref !== r.ref && !(cur && cur.status === 'accepted')) saveAwaiting();
     draft = clone(r.internal.draft);
     draft.options = Object.assign(clone(D.defaults.options), draft.options || {});
     if (asNew) { draft.ref = nextRef(); draft.id = 'd' + Date.now(); draft.issueDate = todayISO(); draft.expiryDate = addDays(draft.issueDate, profile.validityDays || 30); delete draft.acceptedFrom; }
@@ -635,16 +641,18 @@
     var cat = catalogue();
     $('palingList').innerHTML = cat.palings.map(function (p) {
       var custom = customPalings.some(function (c) { return c.id === p.id; });
-      return '<div class="price-row"><div class="pr-top"><div><b>' + esc(p.name) + '</b><div class="small">' + (p.lengthM * 1000) + ' mm long · ' + p.widthMm + ' mm wide · ' + money(p.price) + ' each' + (p.item ? ' · ' + esc(p.item) : '') + '</div></div>' +
+      return '<div class="price-row"><div class="pr-top"><div><b>' + esc(p.name) + '</b><div class="small">' + (p.lengthM * 1000) + ' mm long · ' + p.widthMm + ' mm wide · ' + money(p.price) + ' each' + (p.supplier ? ' · ' + esc(p.supplier) : '') + (p.item ? ' · ' + esc(p.item) : '') + '</div></div>' +
         (custom ? '<button type="button" class="btn small danger" data-del-paling="' + esc(p.id) + '">Remove</button>' : '<span class="tag verified">built-in</span>') + '</div></div>';
     }).join('');
   }
+  var lastPalingId = null;
   function addPaling(o) {
     var len = num(o.length_mm, 0), w = num(o.width_mm, 150), pr = num(o.price, NaN);
     if (!(len >= 300 && len <= 6000)) return 'length_mm must be 300–6000';
     if (!(w >= 50 && w <= 300)) return 'width_mm must be 50–300';
     if (!(pr >= 0)) return 'price missing';
-    customPalings.push({ id: 'c' + Date.now() + Math.floor(Math.random() * 1000), name: String(o.name || (w + ' × ' + len + ' mm paling')).trim(), item: String(o.item || '').trim(), supplier: 'Custom', url: String(o.url || '').trim(), lengthM: len / 1000, widthMm: w, price: pr, unit: 'each', status: 'verified', checked: dateLabel(todayISO()), note: 'Added by you.' });
+    var newId = 'c' + Date.now() + Math.floor(Math.random() * 1000); lastPalingId = newId;
+    customPalings.push({ id: newId, name: String(o.name || (w + ' × ' + len + ' mm paling')).trim(), item: String(o.item || '').trim(), supplier: String(o.supplier || '').trim() || 'Custom', url: String(o.url || '').trim(), lengthM: len / 1000, widthMm: w, price: pr, unit: 'each', status: 'verified', checked: dateLabel(todayISO()), note: 'Added by you.' });
     save(K.palings, customPalings);
     return null;
   }
@@ -837,6 +845,16 @@
   // ---------------- events ----------------
   function bind() {
     document.addEventListener('click', function (e) {
+      var sq = e.target.closest('[data-savequote]');
+      if (sq) {
+        var started = String(draft.input.length || '').trim() !== '' || draft.client.name.trim() !== '';
+        if (!started) { toast('Nothing to save yet – enter a length or client name first'); return; }
+        var rs = saveAwaiting(); renderSaved();
+        sq.textContent = '✓ Saved'; sq.classList.add('saved-flash');
+        setTimeout(function () { sq.textContent = '💾 Save quote – finish it later'; sq.classList.remove('saved-flash'); }, 2500);
+        toast('✓ Quote ' + rs.ref + ' saved. Find it under Saved to carry on later.');
+        return;
+      }
       var dk = e.target.closest('[data-dictate]');
       if (dk) { toggleDictation(dk); return; }
       var be = e.target.closest('[data-bizedit]');
@@ -870,6 +888,18 @@
     $('inLength').addEventListener('input', function () { draft.input.length = this.value; recalc(); });
     $('inHeight').addEventListener('input', function () { draft.input.height = this.value; recalc(); });
     $('selPaling').addEventListener('change', function () { draft.options.palingId = this.value; recalc(); });
+    $('btnShowNewPaling').addEventListener('click', function () { $('newPalingBox').hidden = false; this.hidden = true; if (!$('qpLen').value && Number(draft.input.height) > 0) $('qpLen').value = Math.ceil(((Number(draft.input.height) - (Number(draft.options.groundClearance) || 0)) * 1000) / 300) * 300; setTimeout(function () { $('qpName').focus(); }, 30); });
+    $('btnCancelNewPaling').addEventListener('click', function () { $('newPalingBox').hidden = true; $('btnShowNewPaling').hidden = false; });
+    $('btnSaveNewPaling').addEventListener('click', function () {
+      var len = $('qpLen').value, w = $('qpWidth').value || 150;
+      var err = !$('qpPrice').value ? 'enter the price each' : addPaling({ name: $('qpName').value || (w + ' × ' + len + ' mm paling'), length_mm: len, width_mm: w, price: $('qpPrice').value, supplier: $('qpSupplier').value, item: $('qpItem').value });
+      if (err) { toast('Not saved: ' + err); return; }
+      draft.options.palingId = lastPalingId;
+      ['qpName', 'qpLen', 'qpPrice', 'qpSupplier', 'qpItem'].forEach(function (id) { $(id).value = ''; });
+      $('newPalingBox').hidden = true; $('btnShowNewPaling').hidden = false;
+      fillPalingSelect(); renderPalings(); recalc();
+      toast('✓ New paling saved and selected');
+    });
     var optMap = { optMaxCentres: ['maxCentres', 1], optEmbedment: ['embedment', 1], optHoleDia: ['holeDiameter', 0.001], optClearance: ['groundClearance', 0.001], optGap: ['palingGapMm', 1], optWaste: ['palingWastePct', 1], optFixWaste: ['fixingWastePct', 1], optNailsPer: ['nailsPerPalingPerRail', 1] };
     Object.keys(optMap).forEach(function (id) { $(id).addEventListener('input', function () { var m = optMap[id]; draft.options[m[0]] = this.value === '' ? this.value : num(this.value, 0) * m[1]; recalc(); }); });
     $('optRailRows').addEventListener('change', function () { draft.options.railRows = this.value; recalc(); });
@@ -994,9 +1024,9 @@
     $('pGstReg').addEventListener('change', function () { $('pGstNo').disabled = !this.checked; });
     $('btnResetPrices').addEventListener('click', function () { priceOverrides = {}; save(K.prices, priceOverrides); renderPrices(); fillPalingSelect(); recalc(); toast('Prices reset to researched values'); });
     $('btnAddPaling').addEventListener('click', function () {
-      var err = addPaling({ name: $('npName').value, length_mm: $('npLen').value, width_mm: $('npWidth').value, price: $('npPrice').value, item: $('npItem').value, url: $('npUrl').value });
+      var err = addPaling({ name: $('npName').value, length_mm: $('npLen').value, width_mm: $('npWidth').value, price: $('npPrice').value, supplier: $('npSupplier').value, item: $('npItem').value, url: $('npUrl').value });
       if (err) { toast('Not added: ' + err); return; }
-      ['npName', 'npLen', 'npPrice', 'npItem', 'npUrl'].forEach(function (id) { $(id).value = ''; });
+      ['npName', 'npLen', 'npPrice', 'npSupplier', 'npItem', 'npUrl'].forEach(function (id) { $(id).value = ''; });
       renderPalings(); fillPalingSelect(); recalc(); toast('Paling added');
     });
     $('btnImportCsv').addEventListener('click', function () { $('csvResult').textContent = importCSV($('csvText').value); renderPalings(); fillPalingSelect(); recalc(); });

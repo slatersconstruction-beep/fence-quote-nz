@@ -235,3 +235,8 @@ input[type="date"] { min-width: 0; max-width: 100%; }
 .inv-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
 .inv-item .inv-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 8px; }
 .inv-item .inv-btns .btn { padding: 8px 6px; min-height: 40px; font-size: 14px; }
+
+.btn.save-q { border: 2px solid var(--brand); color: var(--brand); font-weight: 700; margin-bottom: 10px; background: var(--card); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.save-q { color: var(--ink); } }
+:root[data-theme="dark"] .btn.save-q { color: var(--ink); }
+.np-actions{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:10px}

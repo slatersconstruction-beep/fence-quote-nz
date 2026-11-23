@@ -37,6 +37,22 @@
       <label class="field">Paling
         <select id="selPaling"></select>
       </label>
+      <button type="button" class="btn small ghost" id="btnShowNewPaling">+ Add a new paling (size, price, supplier)</button>
+      <div id="newPalingBox" class="disc-offer mt" hidden>
+        <b>New paling</b> <span class="small muted">– check the price online or by phone, then enter it here. It's saved for future quotes.</span>
+        <label class="field mt">Description<input id="qpName" type="text" placeholder="e.g. 150 × 25 × 1800 rough sawn H3.2"></label>
+        <div class="grid2">
+          <label class="field">Length (mm)<input id="qpLen" type="number" inputmode="numeric" placeholder="1800"></label>
+          <label class="field">Width (mm)<input id="qpWidth" type="number" inputmode="numeric" value="150"></label>
+        </div>
+        <div class="grid2">
+          <label class="field">Price each incl GST ($)<input id="qpPrice" type="number" inputmode="decimal" step="0.01" placeholder="6.50"></label>
+          <label class="field">Supplier<input id="qpSupplier" type="text" list="supplierList" placeholder="e.g. PlaceMakers"></label>
+        </div>
+        <label class="field">Product code (optional)<input id="qpItem" type="text"></label>
+        <div class="np-actions"><button type="button" class="btn back-btn" id="btnCancelNewPaling">Cancel</button><button type="button" class="btn primary" id="btnSaveNewPaling">Save &amp; use this paling</button></div>
+      </div>
+      <datalist id="supplierList"><option value="Bunnings"><option value="PlaceMakers"><option value="ITM"><option value="Carters"><option value="Mitre 10"><option value="Hammer Hardware"><option value="Timberland"></datalist>
       <p class="muted small">One straight run, level ground. Height = top of palings above ground.</p>
     </div>
 
@@ -85,6 +101,7 @@
   <!-- ================= QUOTE ================= -->
   <section id="view-quote" class="view" aria-label="Quote">
     <div class="stepbar"><button class="btn small back-btn" type="button" data-goto="measure">← Back to Measure</button><span class="step-now">Step 2 of 3 · Quote</span></div>
+    <button class="btn block save-q" type="button" data-savequote>💾 Save quote – finish it later</button>
     <div class="card biz-card">
       <div class="card-head"><h2>Your business details</h2><button class="btn small" type="button" data-bizedit>✎ Edit</button></div>
       <p class="small" id="bizSummary"></p>
@@ -151,6 +168,7 @@
   <section id="view-send" class="view" aria-label="Preview and send">
     <div class="stepbar"><button class="btn small back-btn" type="button" data-goto="quote" id="btnBackQuote">← Back to Quote</button><button class="btn small ghost" type="button" data-goto="measure">← Measure</button><span class="step-now">Step 3 of 3</span></div>
     <button class="btn small ghost biz-btn mt" type="button" data-bizedit>✎ Edit my business details</button>
+    <button class="btn block save-q mt" type="button" data-savequote>💾 Save quote – finish it later</button>
     <div id="sendProblems" class="mt"></div>
     <div class="card actions-card">
       <div id="docStatus" class="status-banner"></div>
@@ -280,14 +298,15 @@
           <label class="field">Length (mm)<input id="npLen" type="number" inputmode="numeric" placeholder="2100"></label>
           <label class="field">Width (mm)<input id="npWidth" type="number" inputmode="numeric" value="150"></label>
           <label class="field">Price each incl GST ($)<input id="npPrice" type="number" inputmode="decimal" step="0.01"></label>
-          <label class="field">Supplier / item no.<input id="npItem" type="text"></label>
+          <label class="field">Supplier<input id="npSupplier" type="text" list="supplierList" placeholder="e.g. PlaceMakers"></label>
+          <label class="field">Product code (optional)<input id="npItem" type="text"></label>
           <label class="field">Product link<input id="npUrl" type="url"></label>
         </div>
         <button class="btn primary" id="btnAddPaling" type="button">Add paling</button>
       </div>
       <div class="card">
         <h3>Import palings from CSV</h3>
-        <p class="small">Header row: <code>name,length_mm,width_mm,price,item,url</code>. Prices each, incl GST.</p>
+        <p class="small">Header row: <code>name,length_mm,width_mm,price,supplier,item,url</code> (supplier, item and url optional). Prices each, incl GST.</p>
         <textarea id="csvText" rows="4" placeholder="name,length_mm,width_mm,price,item,url&#10;150x25x2100 H3.2,2100,150,7.81,0308570,https://..."></textarea>
         <div class="row-gap"><input id="csvFile" type="file" accept=".csv,text/csv,text/plain"><button class="btn" id="btnImportCsv" type="button">Import CSV</button></div>
         <p id="csvResult" class="small"></p>

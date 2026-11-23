@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.9.0';
+  var APP_VERSION = '1.9.1';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -887,7 +887,24 @@
       records = records.filter(function (x) { return x.id !== r.id; }); persistRecords(); toast('Deleted ' + r.ref); go('saved');
     });
     // settings
-    $('btnSaveProfile').addEventListener('click', saveProfile);
+    var savedFlashTimer = null;
+    $('btnSaveProfile').addEventListener('click', function () {
+      saveProfile();
+      // read it back from the phone's storage to confirm it really saved
+      var stored = null; try { stored = JSON.parse(localStorage.getItem(K.profile)); } catch (e) {}
+      var ok = stored && stored.tradingName === profile.tradingName && stored.bankAccountNumber === profile.bankAccountNumber && stored.phone === profile.phone;
+      var box = $('profileSavedBox'), btn = this;
+      box.hidden = false;
+      box.className = 'alert saved-box ' + (ok ? 'ok' : 'error');
+      box.innerHTML = ok ? '✓ Your business details are saved on this phone.<br><span class="small" style="font-weight:400">They will show on every new quote and PDF.</span>' + (bizReturnTo ? '<button type="button" class="fix-btn" style="background:var(--ok)" id="btnSavedReturn">← Back to your quote</button>' : '')
+        : '✕ Could not save your details on this phone. Check the phone isn\'t in private browsing, then try again.';
+      if (ok && bizReturnTo) $('btnSavedReturn').onclick = function () { $('btnBizReturn').click(); };
+      btn.textContent = ok ? '✓ Saved' : 'Try saving again'; btn.classList.toggle('saved-flash', ok);
+      toast(ok ? '✓ Business details saved' : 'Could not save');
+      clearTimeout(savedFlashTimer);
+      savedFlashTimer = setTimeout(function () { btn.textContent = 'Save my business details'; btn.classList.remove('saved-flash'); }, 2500);
+      setTimeout(function () { box.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 30);
+    });
     $('pBankAccNo').addEventListener('input', bankHint);
     $('pBankAccNo').addEventListener('blur', function () { var f = formatNzAcc(this.value); if (f !== this.value) { this.value = f; saveProfile(); } bankHint(); });
     var profTimer = null;

@@ -216,3 +216,9 @@ input.missing, textarea.missing { border: 2px solid var(--bad) !important; backg
 input[type="date"] { min-width: 0; max-width: 100%; }
 @media (max-width: 560px) { .person .grid3 { grid-template-columns: 1fr 1fr 1fr; } .person .grid3 > :first-child { grid-column: auto; } }
 .dictate-live { margin: 6px 0 0; font-style: italic; color: var(--muted); }
+
+/* ---------- On-site discount in client review ---------- */
+.disc-offer { border: 2px dashed var(--brand); border-radius: 12px; padding: 10px 12px 4px; margin-bottom: 14px; }
+.disc-offer .field { margin-bottom: 4px; }
+.ov-price { font-size: 15px; margin: -4px 0 10px; }
+.ov-price b { font-size: 22px; }

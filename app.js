@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.6.0';
+  var APP_VERSION = '1.7.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -368,6 +368,7 @@
     var rec = saveAwaiting();
     renderDocHTML(rec.doc, $('clientDoc'));
     $('accName').value = ''; $('accAgree').checked = false; $('btnAccept').disabled = true;
+    $('ovDiscount').value = draft.discountPct ? draft.discountPct : ''; renderOvPrice(rec.doc);
     $('accAgreeText').textContent = ACCEPT_STATEMENT;
     $('acceptForm').hidden = false; $('acceptDone').hidden = true;
     $('clientOverlay').hidden = false; document.body.style.overflow = 'hidden'; sigSetup();
@@ -398,6 +399,24 @@
     var scale = Math.min(1, 600 / out.width); var o2 = document.createElement('canvas'); o2.width = Math.round(out.width * scale); o2.height = Math.round(out.height * scale);
     var c2 = o2.getContext('2d'); c2.drawImage(out, 0, 0, o2.width, o2.height);
     return o2.toDataURL('image/png');
+  }
+  function renderOvPrice(doc) {
+    var p = doc.price;
+    $('ovPrice').innerHTML = 'Price to accept: <b>' + money(p.amount) + '</b>' + (p.gstRegistered ? ' incl GST' : '') +
+      (p.discountPct > 0 ? '<br><span class="small">Includes ' + fmtPct(p.discountPct) + ' discount (was ' + money(p.listPrice) + ', you save ' + money(p.discountAmount) + ')</span>' : '');
+    $('ovDiscountNote').textContent = p.discountPct > 0 ? 'Discount applied: ' + fmtPct(p.discountPct) + ' off. The quote above and the signed PDF show the new price.' : 'Type a percentage and the price on the quote above updates straight away.';
+  }
+  function applyOvDiscount() {
+    var v = Math.min(100, Math.max(0, num($('ovDiscount').value, 0)));
+    if (v === (Number(draft.discountPct) || 0)) return;
+    draft.discountPct = v; saveDraft(); recalc();
+    $('inDiscount').value = v ? v : '';
+    var rec = saveAwaiting();
+    var body = $('clientOverlay').querySelector('.overlay-body'), keep = body.scrollTop;
+    renderDocHTML(rec.doc, $('clientDoc')); renderOvPrice(rec.doc); body.scrollTop = keep;
+    // the client must sign the final price: clear anything already signed or ticked
+    if (sig.has || $('accAgree').checked) { $('accAgree').checked = false; sigSetup(); toast('Price changed – please sign again'); }
+    renderSaved();
   }
   function closeClient() { $('clientOverlay').hidden = true; document.body.style.overflow = ''; }
   function updateAcceptBtn() { $('btnAccept').disabled = !($('accName').value.trim().length >= 2 && $('accAgree').checked && sig.has); }
@@ -786,6 +805,7 @@
     $('btnClientAccept').addEventListener('click', openClient);
     // client overlay
     $('btnCloseClient').addEventListener('click', closeClient);
+    $('ovDiscount').addEventListener('input', applyOvDiscount);
     $('accName').addEventListener('input', updateAcceptBtn);
     $('accAgree').addEventListener('change', updateAcceptBtn);
     $('btnAccept').addEventListener('click', doAccept);

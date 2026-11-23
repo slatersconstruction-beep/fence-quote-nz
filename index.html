@@ -325,7 +325,13 @@
   <div class="overlay-body">
     <div id="clientDoc" class="doc"></div>
     <div class="card accept-card" id="acceptForm">
+      <div class="disc-offer">
+        <label class="field">Discount for accepting today (%) <span class="small muted">– optional, tradie's choice</span>
+          <input id="ovDiscount" type="number" inputmode="decimal" step="0.5" min="0" max="100" placeholder="0"></label>
+        <p class="small" id="ovDiscountNote">Type a percentage and the price on the quote above updates straight away.</p>
+      </div>
       <h2>Accept this quote</h2>
+      <div class="ov-price" id="ovPrice"></div>
       <label class="field">Your full name<input id="accName" type="text" autocomplete="name"></label>
       <div class="field">Sign with your finger
         <div class="sig-wrap"><canvas id="sigPad" aria-label="Signature pad"></canvas><span class="sig-line">✕</span></div>

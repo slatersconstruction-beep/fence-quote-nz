@@ -48,7 +48,8 @@
     var reqPostLen = H + embed + Number(opt.postAboveFence || 0);
     var postStock = (cat.posts || []).slice().sort(function (a, b) { return a.lengthM - b.lengthM; });
     var post = null;
-    for (var i = 0; i < postStock.length; i++) if (postStock[i].lengthM + EPS >= reqPostLen) { post = postStock[i]; break; }
+    // cheapest stock length that is long enough (usually the shortest; a longer post can be on special)
+    for (var i = 0; i < postStock.length; i++) if (postStock[i].lengthM + EPS >= reqPostLen && (!post || Number(postStock[i].price) < Number(post.price) - 1e-9)) post = postStock[i];
     if (!post) errors.push('No post stock length in the price list is long enough: need ' + reqPostLen.toFixed(2) + ' m (height ' + H.toFixed(2) + ' m + embedment ' + embed.toFixed(2) + ' m). Add a longer post or get a site-specific design.');
 
     // ---------- PALINGS ----------
@@ -217,5 +218,162 @@
     };
   }
 
-  return { takeoff: takeoff, price: price, r2: r2, GST_RATE: GST_RATE };
+
+  // ===================================================================================
+  // DECK takeoff: one rectangular timber deck (NZS 3604 span tables in FQ_DATA.deckRules)
+  // ===================================================================================
+  // Buy timber in stock lengths: one piece if a stock length covers it, otherwise equal pieces joined over supports.
+  function stockFor(needM, lengths) {
+    var ls = (lengths && lengths.length ? lengths : [6.0]).slice().sort(function (a, b) { return a - b; });
+    var max = ls[ls.length - 1];
+    var pieces = Math.max(1, ceil(needM / max));
+    var each = needM / pieces, len = max;
+    for (var i = 0; i < ls.length; i++) if (ls[i] + EPS >= each) { len = ls[i]; break; }
+    return { pieces: pieces, len: len, lm: pieces * len };
+  }
+  function centresIdx(rules, c) { var i = rules.centres.indexOf(Number(c)); return i < 0 ? 1 : i; }
+  function bearerMaxSpan(rules, size, ld) {
+    var rows = rules.bearerSpan[size] || [], best = 0;
+    rows.forEach(function (r) { if (r[1] + EPS >= ld && r[0] > best) best = r[0]; });
+    return best;
+  }
+
+  function deckTakeoff(inp, opt, cat, rules) {
+    var errors = [], warnings = [], notes = [];
+    var L = Number(inp.length), W = Number(inp.width), H = Number(inp.height);
+    if (!(L > 0)) errors.push('Enter the deck length (along the house) in metres.');
+    if (!(W > 0)) errors.push('Enter the deck width (out from the house) in metres.');
+    if (!(H > 0)) errors.push('Enter the deck height (top of the boards above the ground).');
+    if (errors.length) return { ok: false, errors: errors, warnings: warnings, notes: notes, lines: [], total: 0 };
+    var attached = opt.attached !== false && opt.attached !== 'false';
+    var centres = Number(opt.joistCentres) || 450, ci = centresIdx(rules, centres);
+    var cant = Math.max(0, Number(opt.cantilever) || 0);
+    var gap = Number(opt.boardGapMm); if (!isFinite(gap)) gap = 4;
+    var bWaste = (Number(opt.boardWastePct) || 0) / 100, tWaste = (Number(opt.timberWastePct) || 0) / 100, fWaste = (Number(opt.fixingWastePct) || 0) / 100;
+    var embed = Number(opt.pileEmbed) || 0.45, holeD = Number(opt.pileHoleDia) || 0.3;
+
+    var board = (cat.boards || []).filter(function (b) { return b.id === opt.boardId; })[0] || (cat.boards || [])[0];
+    if (!board) errors.push('No decking board in the price list. Add one.');
+    var joistOpts = (cat.joists || []).filter(function (j) { return rules.joistSpan[j.depthMm]; });
+    if (opt.joistId && opt.joistId !== 'auto') { joistOpts = joistOpts.filter(function (j) { return j.id === opt.joistId; }); if (!joistOpts.length) errors.push('Chosen joist size not found.'); }
+    var bearerOpts = (cat.bearers || []).filter(function (b) { return rules.bearerSpan[b.size]; });
+    if (opt.bearerId && opt.bearerId !== 'auto') { bearerOpts = bearerOpts.filter(function (b) { return b.id === opt.bearerId; }); if (!bearerOpts.length) errors.push('Chosen bearer size not found.'); }
+    if (errors.length) return { ok: false, errors: errors, warnings: warnings, notes: notes, lines: [], total: 0 };
+
+    var boardT = (Number(board.thicknessMm) || 32) / 1000;
+    var piles = (cat.piles || []).slice();
+    var joistCount = ceil(L * 1000 / centres) + 1; // includes both end joists
+
+    // Try every joist × bearer combination and keep the cheapest that meets the span tables.
+    var best = null, reasons = [], lowest = 99;
+    joistOpts.forEach(function (j) {
+      var maxSpan = rules.joistSpan[j.depthMm][ci], maxCant = rules.joistCantilever[j.depthMm][ci];
+      if (cant > maxCant + EPS) { reasons.push(j.name + ': overhang ' + cant.toFixed(2) + ' m is more than the ' + maxCant.toFixed(2) + ' m allowed'); return; }
+      var supported = W - cant;
+      if (supported <= 0.3) { reasons.push('Overhang leaves no supported joist length'); return; }
+      var spans = Math.max(1, ceil(supported / maxSpan));
+      var span = supported / spans;
+      var bearerRows = attached ? spans : spans + 1;
+      // loaded dimension: internal bearer = 1 span; edge bearer = half span + overhang
+      var ld = Math.max(bearerRows > 1 || !attached ? (attached || spans > 1 ? span : 0) : 0, span / 2 + cant);
+      if (attached && spans === 1) ld = span / 2 + cant;
+      bearerOpts.forEach(function (b) {
+        var bSpan = bearerMaxSpan(rules, b.size, ld);
+        if (!bSpan) { reasons.push(b.name + ' cannot carry ' + ld.toFixed(2) + ' m of joists'); return; }
+        var pilesPerRow = ceil(L / bSpan) + 1;
+        var pileSpacing = L / (pilesPerRow - 1);
+        var pileCount = pilesPerRow * bearerRows;
+        var above = H - boardT - j.depthMm / 1000 - b.depthMm / 1000;
+        if (above < 0.05) { lowest = Math.min(lowest, boardT + j.depthMm / 1000 + b.depthMm / 1000); reasons.push('too low for ' + j.depthMm + ' joists on ' + b.size.replace('x', '×') + ' bearers'); return; }
+        var pileNeed = Math.max(0, above) + embed;
+        var pile = null;
+        piles.forEach(function (p) { if (p.lengthM + EPS >= pileNeed && (!pile || Number(p.price) < Number(pile.price) - 1e-9)) pile = p; });
+        var jStock = stockFor(W, j.lengths), bStock = stockFor(L, b.lengths);
+        var cost = joistCount * jStock.lm * Number(j.price) + bearerRows * bStock.lm * Number(b.price) + (pile ? pileCount * Number(pile.price) : 1e9);
+        var c = { joist: j, bearer: b, maxSpan: maxSpan, maxCant: maxCant, spans: spans, span: span, bearerRows: bearerRows, ld: ld, bSpan: bSpan,
+          pilesPerRow: pilesPerRow, pileSpacing: pileSpacing, pileCount: pileCount, above: above, pileNeed: pileNeed, pile: pile, jStock: jStock, bStock: bStock, cost: cost };
+        if (!best || cost < best.cost - 1e-6) best = c;
+      });
+    });
+    if (!best && lowest < 99) { errors.push('Deck is too low for joists on bearers: the lowest build needs ' + Math.round(lowest * 1000 + 50) + ' mm from the top of the boards to the ground. Raise the deck height, dig out under it, or build it differently (e.g. joists straight onto piles) and price it with extras.'); return { ok: false, errors: errors, warnings: warnings, notes: notes, lines: [], total: 0 }; }
+    if (!best) { errors.push('No joist and bearer combination in the price list meets the NZS 3604 span tables for this deck. ' + (reasons[0] || '') + '. Try closer joists, a smaller overhang, or get it designed.'); return { ok: false, errors: errors, warnings: warnings, notes: notes, lines: [], total: 0 }; }
+    var j = best.joist, b = best.bearer;
+    if (!best.pile) { errors.push('Piles would need to be ' + best.pileNeed.toFixed(2) + ' m long – longer than any pile in the price list. This deck needs a specific design (braced piles / posts).'); return { ok: false, errors: errors, warnings: warnings, notes: notes, lines: [], total: 0 }; }
+
+    // ---------- quantities ----------
+    var boardRows = ceil(W * 1000 / (Number(board.widthMm) + gap));
+    var boardLm = boardRows * L, boardBuy = ceil(boardLm * (1 + bWaste) * 10) / 10;
+    var jLm = joistCount * best.jStock.lm;
+    var frontLm = 0, frontStock = null;
+    if (opt.frontBoundary !== false && opt.frontBoundary !== 'false') { frontStock = stockFor(L, j.lengths); frontLm = frontStock.lm; }
+    var stringerStock = attached ? stockFor(L, j.lengths) : null;
+    var joistTimberLm = ceil((jLm + frontLm + (stringerStock ? stringerStock.lm : 0)) * (1 + tWaste) * 10) / 10;
+    var bearerLm = ceil(best.bearerRows * best.bStock.lm * (1 + tWaste) * 10) / 10;
+    var crossings = joistCount * best.bearerRows;
+    var screws = ceil(boardRows * joistCount * (Number(opt.screwsPerCrossing) || 2) * (1 + fWaste));
+    var screwPacks = ceil(screws / Number(cat.screws.perPack));
+    var hanger = null;
+    if (attached) { (cat.hangers || []).slice().sort(function (a, c) { return a.fitsMm - c.fitsMm; }).forEach(function (h) { if (!hanger && h.fitsMm >= j.depthMm) hanger = h; }); if (!hanger) hanger = (cat.hangers || [])[cat.hangers.length - 1]; }
+    var ties = ceil(crossings * (Number(opt.tiesPerCrossing) || 0));
+    var dogs = ceil(best.pileCount * (Number(opt.wireDogsPerPile) || 0) * (1 + fWaste));
+    var dogPacks = ceil(dogs / Number(cat.wireDogs.perPack));
+    var boltCount = attached ? ceil(L / (Number(opt.boltCentres) || 0.8)) + 1 : 0;
+    var nails = ceil((crossings * 2 + (frontLm ? joistCount * 3 : 0) + (attached ? joistCount * 0 : 0)) * (1 + fWaste));
+    var nailPacks = ceil(nails / Number(cat.nails.perPack));
+    // concrete per pile hole, same method as fence posts
+    var holeArea = Math.PI * Math.pow(holeD / 2, 2), pileArea = 0.125 * 0.125;
+    var perHole = Math.max(0, holeArea * embed - pileArea * embed);
+    var bagsPerHole = perHole / Number(cat.concrete.yieldM3);
+    var bags = ceil(bagsPerHole * best.pileCount);
+
+    function line(key, label, item, qty, unitLabel, detail) {
+      var unit = Number(item.price);
+      return { key: key, label: label, item: item, qty: qty, unitLabel: unitLabel, unitPrice: unit, subtotal: r2(qty * unit), detail: detail };
+    }
+    function m(n) { return n.toFixed(1) + ' m'; }
+    var lines = [
+      line('dpiles', 'H5 piles', best.pile, best.pileCount, 'each',
+        best.bearerRows + ' bearer row' + (best.bearerRows > 1 ? 's' : '') + ' × ' + best.pilesPerRow + ' piles at ' + best.pileSpacing.toFixed(2) + ' m (max ' + best.bSpan.toFixed(2) + ' m for ' + b.size.replace('x', '×') + ' carrying ' + best.ld.toFixed(2) + ' m). Pile ' + Math.round(best.above * 1000) + ' mm above ground + ' + Math.round(embed * 1000) + ' mm in the ground = ' + best.pileNeed.toFixed(2) + ' m → ' + best.pile.lengthM.toFixed(2) + ' m pile.'),
+      line('dconcrete', 'Concrete (pile holes)', cat.concrete, bags, 'bag',
+        bagsPerHole.toFixed(2) + ' bags per hole (Ø' + Math.round(holeD * 1000) + ' × ' + Math.round(embed * 1000) + ' mm less pile) × ' + best.pileCount + ' piles, part bags shared = ' + bags + ' bags.'),
+      line('dbearers', 'Bearers', b, bearerLm, 'm',
+        best.bearerRows + ' row' + (best.bearerRows > 1 ? 's' : '') + ' × ' + (best.bStock.pieces > 1 ? best.bStock.pieces + ' × ' : '') + m(best.bStock.len) + ' (deck ' + m(L) + ' long' + (best.bStock.pieces > 1 ? ', joined over a pile' : '') + ') = ' + bearerLm.toFixed(1) + ' m.'),
+      line('djoists', 'Joists' + (attached ? ', stringer' : '') + (frontLm ? ' & boundary joist' : ''), j, joistTimberLm, 'm',
+        joistCount + ' joists at ' + centres + ' mm centres × ' + (best.jStock.pieces > 1 ? best.jStock.pieces + ' × ' : '') + m(best.jStock.len) + ' (span ' + best.span.toFixed(2) + ' m, max ' + best.maxSpan.toFixed(2) + ' m' + (cant ? ', overhang ' + cant.toFixed(2) + ' m of max ' + best.maxCant.toFixed(2) + ' m' : '') + ')' +
+        (attached ? ' + stringer ' + (stringerStock.pieces > 1 ? stringerStock.pieces + ' × ' : '') + m(stringerStock.len) : '') + (frontLm ? ' + boundary joist ' + (frontStock.pieces > 1 ? frontStock.pieces + ' × ' : '') + m(frontStock.len) : '') + ' = ' + joistTimberLm.toFixed(1) + ' m.'),
+      line('dboards', 'Decking boards', board, boardBuy, 'm',
+        boardRows + ' rows (' + Math.round(W * 1000) + ' mm ÷ ' + board.widthMm + ' mm board + ' + gap + ' mm gap) × ' + m(L) + ' = ' + boardLm.toFixed(1) + ' m + ' + Math.round(bWaste * 100) + '% waste → ' + boardBuy.toFixed(1) + ' m.'),
+      line('dscrews', 'Decking screws', cat.screws, screwPacks, 'pack',
+        boardRows + ' rows × ' + joistCount + ' joists × ' + (Number(opt.screwsPerCrossing) || 2) + ' + ' + Math.round(fWaste * 100) + '% = ' + screws + ' screws → ' + screwPacks + ' pack' + (screwPacks > 1 ? 's' : '') + ' of ' + cat.screws.perPack + '.')
+    ];
+    if (attached) {
+      lines.push(line('dhangers', 'Joist hangers', hanger, joistCount, 'each', 'One per joist at the stringer.'));
+      lines.push(line('dbolts', 'Stringer bolts', cat.bolts, boltCount, 'each', 'M12 at ' + (Number(opt.boltCentres) || 0.8).toFixed(2) + ' m centres along ' + m(L) + ' = ' + boltCount + '.'));
+    }
+    if (ties) lines.push(line('dties', 'Joist ties', cat.ties, ties, 'each', joistCount + ' joists × ' + best.bearerRows + ' bearer row' + (best.bearerRows > 1 ? 's' : '') + ' = ' + crossings + ' crossings × ' + (Number(opt.tiesPerCrossing) || 0) + '.'));
+    if (dogs) lines.push(line('ddogs', 'Wire dogs', cat.wireDogs, dogPacks, 'pack', best.pileCount + ' piles × ' + (Number(opt.wireDogsPerPile) || 0) + ' + waste = ' + dogs + ' → ' + dogPacks + ' pack' + (dogPacks > 1 ? 's' : '') + ' of ' + cat.wireDogs.perPack + '.'));
+    lines.push(line('dnails', 'Galv nails (skew & boundary)', cat.nails, nailPacks, 'pack', crossings + ' crossings × 2 skew nails' + (frontLm ? ' + ' + joistCount + ' joist ends × 3' : '') + ' + waste = ' + nails + ' → ' + nailPacks + ' × 500 g pack (~' + cat.nails.perPack + ' each).'));
+    var total = r2(lines.reduce(function (s, l) { return s + l.subtotal; }, 0));
+
+    // ---------- flags ----------
+    var area = L * W;
+    if (H > 1.5 + EPS) warnings.push({ level: 'consent', text: 'Deck over 1.5 m above the ground: the building consent exemption does not apply (you could fall more than 1.5 m). Needs building consent and a design.' });
+    if (H >= 1.0 - EPS) warnings.push({ level: 'consent', text: 'Fall of 1 m or more: Building Code F4 needs a safety barrier (balustrade). Not included in this takeoff – add it as an extra. A cantilevered balustrade needs at least 190 mm joists at 400 mm centres.' });
+    if (best.above > 1.2 + EPS) warnings.push({ level: 'design', text: 'Piles stand ' + Math.round(best.above * 1000) + ' mm above ground: over 1.2 m, ordinary (cantilevered) piles are not enough – use braced piles / a specific design.' });
+    if (!attached || best.above > 0.6 + EPS) warnings.push({ level: 'design', text: 'Bracing: ' + (attached ? 'with piles over 600 mm high this deck' : 'a free-standing deck') + ' needs bracing (anchor or braced piles, about ' + Math.round(area * 15) + ' BU each way at 15 BU/m² for zone 3 – check your wind/earthquake zone). Anchor/braced piles are not counted here: swap some piles or add as an extra.' });
+    if (centres > 450 && Number(board.thicknessMm) <= 32) warnings.push({ level: 'design', text: '32 mm pine boards at 600 mm joist centres: check the board maker allows this span; 450 mm is the usual maximum.' });
+    if (b.id === 'bu-bearer-2x140x45') warnings.push({ level: 'design', text: 'Built-up 2/140×45 bearer is costed as a solid 140×90: confirm this is acceptable for your job.' });
+    if (opt.coastal) warnings.push({ level: 'design', text: 'Within 500 m of the sea: use 316 stainless screws, nails and fixings (higher price than shown unless you changed them).' });
+    if (attached) notes.push('Keep a 12 mm gap between the decking and the house cladding, and pack the stringer off the cladding for drainage (E2/AS1).');
+    notes.push('Rectangle, level ground, no steps, stairs or handrails.');
+
+    return {
+      ok: true, errors: [], warnings: warnings, notes: notes, lines: lines, total: total,
+      summary: { length: L, width: W, height: H, area: area, attached: attached, joist: j, bearer: b, board: board, pile: best.pile, centres: centres,
+        joistCount: joistCount, bearerRows: best.bearerRows, pilesPerRow: best.pilesPerRow, pileCount: best.pileCount, pileSpacing: best.pileSpacing,
+        span: best.span, maxSpan: best.maxSpan, cantilever: cant, boardRows: boardRows, boardBuy: boardBuy, embed: embed, holeDia: holeD, above: best.above, gapMm: gap }
+    };
+  }
+
+  return { takeoff: takeoff, deckTakeoff: deckTakeoff, stockFor: stockFor, price: price, r2: r2, GST_RATE: GST_RATE };
 });

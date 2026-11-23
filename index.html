@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Fence Quote NZ</title>
-<meta name="description" content="Quote timber paling fences onsite: takeoff, client quote, acceptance and PDF.">
+<title>Fence &amp; Deck Quote NZ</title>
+<meta name="description" content="Quote timber paling fences and decks onsite: takeoff, client quote, acceptance and PDF.">
 <meta name="theme-color" content="#1f5130">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="logo" aria-hidden="true">▥</span> Fence Quote NZ</div>
+  <div class="brand"><span class="logo" aria-hidden="true">▥</span> Fence &amp; Deck</div>
   <div class="topbar-right"><span id="refBadge" class="ref-badge"></span><button class="btn small newq" id="btnNewTop" type="button">+ New quote</button></div>
 </header>
 
@@ -25,7 +25,19 @@
   <!-- ================= MEASURE ================= -->
   <section id="view-measure" class="view active" aria-label="Measure and price">
     <div class="stepbar"><span class="step-now">Step 1 of 3 · Measure</span><button class="btn small ghost biz-btn" type="button" data-bizedit>✎ My business details</button></div>
+    <div class="card jobs-card">
+      <h2>What are you quoting?</h2>
+      <div class="job-pick">
+        <label class="job-chip"><input type="checkbox" id="jobFence"> <span>🪵 Fence</span></label>
+        <label class="job-chip"><input type="checkbox" id="jobDeck"> <span>🟫 Deck</span></label>
+        <label class="job-chip off"><input type="checkbox" disabled> <span>Pergola <small>coming soon</small></span></label>
+      </div>
+      <p class="small muted" id="jobsNote">Tick one or both. Everything you tick goes on the same quote and PDF.</p>
+    </div>
+
+    <div id="fenceSection">
     <div class="card hero">
+      <h2 class="sec-title">🪵 Fence</h2>
       <div class="grid2">
         <label class="big-input">Fence length <span class="unit">m</span>
           <input id="inLength" type="number" inputmode="decimal" step="0.1" min="0" placeholder="12">
@@ -60,7 +72,7 @@
     <div id="takeoffWarnings"></div>
 
     <div class="card">
-      <div class="card-head"><h2>Materials takeoff</h2><span id="matTotal" class="pill strong"></span></div>
+      <div class="card-head"><h2>Fence materials takeoff</h2><span id="matTotal" class="pill strong"></span></div>
       <div id="takeoffSummary" class="summary-row"></div>
       <div id="takeoffLines"></div>
       <p class="muted small" id="priceBasisNote"></p>
@@ -89,6 +101,73 @@
       </div>
       <button class="btn ghost small" id="btnResetOpts" type="button">Reset options to defaults</button>
     </details>
+    </div><!-- /fenceSection -->
+
+    <div id="deckSection" hidden>
+    <div class="card hero">
+      <h2 class="sec-title">🟫 Deck</h2>
+      <div class="grid2">
+        <label class="big-input">Length <span class="unit">m</span><span class="small muted d-hint">along the house</span>
+          <input id="dLength" type="number" inputmode="decimal" step="0.1" min="0" placeholder="6"></label>
+        <label class="big-input">Width <span class="unit">m</span><span class="small muted d-hint">out from the house</span>
+          <input id="dWidth" type="number" inputmode="decimal" step="0.1" min="0" placeholder="4"></label>
+      </div>
+      <label class="field">Height: top of the deck above the ground (m)<input id="dHeight" type="number" inputmode="decimal" step="0.05" min="0" placeholder="0.6"></label>
+      <label class="field check"><input id="dAttached" type="checkbox"> Attached to the house (stringer bolted to the house)</label>
+      <label class="field">Decking boards<select id="dBoard"></select></label>
+      <button type="button" class="btn small ghost" id="btnShowNewBoard">+ Add a new decking board (size, price, supplier)</button>
+      <div id="newBoardBox" class="disc-offer mt" hidden>
+        <b>New decking board</b> <span class="small muted">– check the price online or by phone, then enter it here. It's saved for future quotes.</span>
+        <label class="field mt">Description<input id="dnbName" type="text" placeholder="e.g. 90 × 19 kwila decking"></label>
+        <div class="grid2">
+          <label class="field">Width (mm)<input id="dnbWidth" type="number" inputmode="numeric" placeholder="90"></label>
+          <label class="field">Thickness (mm)<input id="dnbThick" type="number" inputmode="numeric" placeholder="32"></label>
+        </div>
+        <div class="grid2">
+          <label class="field">Price per metre incl GST ($)<input id="dnbPrice" type="number" inputmode="decimal" step="0.01" placeholder="6.50"></label>
+          <label class="field">Supplier<input id="dnbSupplier" type="text" list="supplierList" placeholder="e.g. PlaceMakers"></label>
+        </div>
+        <label class="field">Product code (optional)<input id="dnbItem" type="text"></label>
+        <div class="np-actions"><button type="button" class="btn back-btn" id="btnCancelNewBoard">Cancel</button><button type="button" class="btn primary" id="btnSaveNewBoard">Save &amp; use this board</button></div>
+      </div>
+      <div class="grid2">
+        <label class="field">Joist spacing<select id="dCentres"><option value="400">400 mm</option><option value="450">450 mm</option><option value="600">600 mm</option></select></label>
+        <label class="field">Joist size<select id="dJoist"></select></label>
+        <label class="field">Bearer size<select id="dBearer"></select></label>
+      </div>
+      <p class="muted small">One rectangle on level ground. Sizes on "Auto" are picked for the lowest cost that meets the NZS 3604 span tables.</p>
+    </div>
+
+    <div id="deckErrors"></div>
+    <div id="deckWarnings"></div>
+
+    <div class="card">
+      <div class="card-head"><h2>Deck materials takeoff</h2><span id="deckTotal" class="pill strong"></span></div>
+      <div id="deckSummary" class="summary-row"></div>
+      <div id="deckLines"></div>
+      <p class="muted small" id="deckBasisNote"></p>
+    </div>
+
+    <details class="card" id="deckOptsCard">
+      <summary><h2>Deck options</h2><span class="muted small">overhang, piles, gaps, waste, fixings</span></summary>
+      <div class="grid2">
+        <label class="field">Joist overhang past last bearer (m)<input id="dCant" type="number" inputmode="decimal" step="0.05" min="0"></label>
+        <label class="field">Gap between boards (mm)<input id="dGap" type="number" inputmode="numeric" step="1" min="0"></label>
+        <label class="field">Pile depth in ground (mm)<input id="dEmbed" type="number" inputmode="numeric" step="50" min="200"></label>
+        <label class="field">Pile hole diameter (mm)<input id="dHoleDia" type="number" inputmode="numeric" step="10" min="200"></label>
+        <label class="field">Board waste (%)<input id="dBoardWaste" type="number" inputmode="numeric" step="1" min="0"></label>
+        <label class="field">Joist/bearer waste (%)<input id="dTimberWaste" type="number" inputmode="numeric" step="1" min="0"></label>
+        <label class="field">Fixings waste (%)<input id="dFixWaste" type="number" inputmode="numeric" step="1" min="0"></label>
+        <label class="field">Screws per board per joist<input id="dScrews" type="number" inputmode="numeric" step="1" min="1"></label>
+        <label class="field">Joist ties per joist/bearer crossing<input id="dTies" type="number" inputmode="numeric" step="1" min="0"></label>
+        <label class="field">Wire dogs per pile<input id="dDogs" type="number" inputmode="numeric" step="1" min="0"></label>
+        <label class="field">Stringer bolt centres (m)<input id="dBolts" type="number" inputmode="decimal" step="0.1" min="0.3"></label>
+      </div>
+      <label class="field check"><input id="dFront" type="checkbox"> Boundary joist across the outside edge</label>
+      <label class="field check"><input id="dCoastal" type="checkbox"> Within 500 m of the sea (stainless fixings)</label>
+      <button class="btn ghost small" id="btnResetDeckOpts" type="button">Reset deck options to defaults</button>
+    </details>
+    </div><!-- /deckSection -->
 
     <div class="card rules-mini">
       <h2>Rules vs assumptions</h2>
@@ -315,7 +394,7 @@
 
     <div class="settab" id="set-rules">
       <div class="card"><h2>Consent &amp; planning rules</h2><p class="small">Legal requirements. Always check the specific site; this is a summary, not legal advice.</p><div id="rulesList"></div></div>
-      <div class="card"><h2>Estimating assumptions</h2><p class="small">My trade rules of thumb used for the takeoff. They are <b>not</b> Building Code requirements.</p><ul id="assumptionList" class="small"></ul></div>
+      <div class="card"><h2>Estimating assumptions</h2><p class="small">My trade rules of thumb used for the takeoff. They are <b>not</b> Building Code requirements.</p><h3>Fences</h3><ul id="assumptionList" class="small"></ul><h3>Decks</h3><ul id="deckAssumptionList" class="small"></ul></div>
       <div class="card"><h2>When to get a site-specific design</h2>
         <ul class="small">
           <li>Over 2.5 m high (also needs building consent).</li>
@@ -343,7 +422,7 @@
         </div>
         <p id="dataResult" class="small"></p>
       </div>
-      <div class="card"><h2>About</h2><p class="small">Fence Quote NZ <span id="appVersion"></span>. Prices checked <span id="pricesChecked"></span>.</p></div>
+      <div class="card"><h2>About</h2><p class="small">Fence &amp; Deck Quote NZ <span id="appVersion"></span>. Prices checked <span id="pricesChecked"></span>.</p></div>
     </div>
   </section>
 </main>

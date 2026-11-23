@@ -240,3 +240,13 @@ input[type="date"] { min-width: 0; max-width: 100%; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.save-q { color: var(--ink); } }
 :root[data-theme="dark"] .btn.save-q { color: var(--ink); }
 .np-actions{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:10px}
+/* v2.2 jobs chooser and deck */
+.job-pick { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.job-chip { display: flex; align-items: center; gap: 8px; border: 2px solid var(--line); border-radius: 12px; padding: 10px 14px; font-weight: 700; font-size: 17px; cursor: pointer; background: var(--bg); }
+.job-chip input { width: 22px; height: 22px; margin: 0; }
+.job-chip:has(input:checked) { border-color: var(--brand); background: var(--ok-bg); }
+.job-chip.off { opacity: .5; cursor: default; font-weight: 400; }
+.sec-title { margin: 0 0 8px; }
+.d-hint { display: block; font-weight: 400; }
+.price-group { margin: 14px 0 4px; font-size: 15px; }
+.mline-price .per { color: var(--muted); }

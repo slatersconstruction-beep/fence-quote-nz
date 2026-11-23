@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '2.2.0';
+  var APP_VERSION = '2.2.1';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -160,6 +160,8 @@
     var mat = matTotal();
     pricing = C.price(mat, draft.labour, draft.extras, { gstRegistered: profile.gstRegistered, marginPct: draft.marginPct, roundTo: draft.roundTo, discountPct: draft.discountPct });
     if (!draft.scopeEdited && takeoffsOk()) draft.scope = buildScope();
+    // show the rebuilt scope in the box too (it used to stay blank until the app was reopened)
+    if (!draft.scopeEdited && $('qScope').value !== draft.scope) $('qScope').value = draft.scope;
     saveDraft();
     renderMeasure(); renderDeck(); renderQuote(); renderSendIfVisible();
     $('refBadge').textContent = draft.ref;
@@ -497,7 +499,7 @@
     $('ovDiscount').value = draft.discountPct ? draft.discountPct : ''; renderOvPrice(rec.doc);
     $('ovStart').value = draft.startDate || ''; $('ovDays').value = draft.durationDays || '';
     $('accAgreeText').textContent = ACCEPT_STATEMENT;
-    $('acceptForm').hidden = false; $('acceptDone').hidden = true;
+    $('acceptForm').hidden = false; $('acceptDone').hidden = true; acceptedRecId = null;
     $('clientOverlay').hidden = false; document.body.style.overflow = 'hidden'; sigSetup();
     $('clientOverlay').querySelector('.overlay-body').scrollTop = 0;
   }
@@ -556,7 +558,11 @@
     if (sig.has || $('accAgree').checked) { $('accAgree').checked = false; sigSetup(); toast('Details changed – please sign again'); }
     renderSaved();
   }
-  function closeClient() { $('clientOverlay').hidden = true; document.body.style.overflow = ''; }
+  var acceptedRecId = null;
+  function closeClient() {
+    $('clientOverlay').hidden = true; document.body.style.overflow = '';
+    if (acceptedRecId) { var id = acceptedRecId; acceptedRecId = null; openRecord(id); }
+  }
   function updateAcceptBtn() { $('btnAccept').disabled = !($('accName').value.trim().length >= 2 && $('accAgree').checked && sig.has); }
   function doAccept() {
     var rec = findRecord(draft.ref);
@@ -574,14 +580,16 @@
       rec.internal = internalSnapshot();
       if (!persistRecords()) { toast('Could not save acceptance!'); return; }
       var oldRef = draft.ref;
-      draft.ref = nextRef(); draft.acceptedFrom = oldRef; saveDraft();
-      $('refBadge').textContent = draft.ref; $('qRef').value = draft.ref;
+      // the accepted quote is locked in Saved; clear the editor so the next job starts fresh
+      // (it used to keep this client under a new number, which made duplicate quotes)
+      draft = newDraft(); saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc();
+      acceptedRecId = rec.id;
       renderDocHTML(doc, $('clientDoc'));
       $('acceptForm').hidden = true;
       $('acceptDone').hidden = false;
       $('acceptDone').innerHTML = '<div class="alert ok"><b>Thank you, ' + esc(name) + '.</b> Quote ' + esc(oldRef) + ' was accepted on ' + esc(doc.acceptance.atLabel) + ' and saved.</div>' +
         '<p class="small">Hand the phone back to ' + esc(profile.contactPerson || 'the contractor') + '.</p><button class="btn primary block" type="button" id="btnAfterAccept">Contractor: open accepted quote – send PDF or create invoice</button>';
-      $('btnAfterAccept').onclick = function () { closeClient(); openRecord(rec.id); };
+      $('btnAfterAccept').onclick = function () { closeClient(); };
       $('clientOverlay').querySelector('.overlay-body').scrollTop = 0;
       renderSaved();
     });
@@ -671,22 +679,26 @@
     $('recStatus').className = 'status-banner ' + r.status;
     $('recStatus').textContent = r.status === 'accepted' ? '✔ Accepted by ' + r.doc.acceptance.name + ' · ' + r.doc.acceptance.atLabel + ' · locked' : 'Awaiting acceptance · last saved ' + dateTimeLabel(r.updatedAt);
     $('recEdit').hidden = r.status === 'accepted';
+    $('recAccept').hidden = r.status === 'accepted'; $('recInvJump').hidden = r.status !== 'accepted';
     $('recEdit').textContent = '✏️ Open and keep editing this quote';
-    var eb = $('recEdit'); if (r.status !== 'accepted') { eb.className = 'btn primary block'; eb.parentNode.insertBefore(eb, eb.parentNode.firstChild); } else { eb.className = 'btn block'; }
+    var eb = $('recEdit'); if (r.status !== 'accepted') { eb.className = 'btn primary block'; eb.parentNode.insertBefore(eb, eb.parentNode.firstChild); eb.parentNode.insertBefore($('recAccept'), eb.nextSibling); } else { eb.className = 'btn block'; }
+    if (r.status === 'accepted') $('recShare').parentNode.insertBefore($('recInvJump'), $('recShare').nextSibling);
     invSel = 0; $('invHelp').innerHTML = ''; renderInvoices(r);
     $('recHelp').innerHTML = r.status === 'accepted' ? '<p class="small muted">This is the exact version the client accepted. It cannot be edited; later price or business changes do not affect it. Use "Copy into a new quote" to change anything.</p>' : '';
     go('record');
   }
   function currentRecord() { return records.filter(function (x) { return x.id === currentRecordId; })[0]; }
-  function loadIntoEditor(r, asNew) {
+  function loadIntoEditor(r, asNew, thenAccept) {
     // keep whatever is on screen safe before opening another quote
     var started = String(draft.input.length || '').trim() !== '' || String(draft.deck.input.length || '').trim() !== '' || draft.client.name.trim() !== '';
     var cur = findRecord(draft.ref);
-    if (started && draft.ref !== r.ref && !(cur && cur.status === 'accepted')) saveAwaiting();
+    if (started && draft.ref !== r.ref && !(cur && cur.status === 'accepted') && !draft.acceptedFrom) saveAwaiting();
     draft = normDraft(clone(r.internal.draft));
     draft.options = Object.assign(clone(D.defaults.options), draft.options || {});
     if (asNew) { draft.ref = nextRef(); draft.id = 'd' + Date.now(); draft.issueDate = todayISO(); draft.expiryDate = addDays(draft.issueDate, profile.validityDays || 30); delete draft.acceptedFrom; }
-    saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc(); go('quote');
+    saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc();
+    if (thenAccept) { go('send'); if ($('view-send').classList.contains('active') && !blocking().length) openClient(); return; }
+    go('quote');
     toast(asNew ? 'Copied into new quote ' + draft.ref : 'Editing ' + draft.ref);
   }
 
@@ -1096,9 +1108,10 @@
       var started = String(draft.input.length || '').trim() !== '' || String(draft.deck.input.length || '').trim() !== '' || draft.client.name.trim() !== '' || draft.client.address.trim() !== '';
       if (!started) { startNew(); return; }
       var rec = findRecord(draft.ref);
+      if (!rec && draft.acceptedFrom) rec = findRecord(draft.acceptedFrom);
       var who = draft.client.name.trim() ? ' for ' + draft.client.name.trim() : '';
       $('newDlgText').textContent = rec && rec.status === 'accepted'
-        ? 'Quote ' + draft.ref + who + ' is already accepted and kept in Saved quotes. Your screen will be cleared for a new quote.'
+        ? 'Quote ' + rec.ref + who + ' is already accepted and kept in Saved quotes. Your screen will be cleared for a new quote.'
         : 'The quote on screen (' + draft.ref + who + ') will be cleared. Save it first so you can open it again later from Saved quotes.';
       $('newDlgSave').hidden = !!(rec && rec.status === 'accepted');
       $('newDlgDiscard').textContent = rec && rec.status === 'accepted' ? 'Start new quote' : (rec ? 'Start new (keep the last saved copy)' : 'Start new without saving');
@@ -1126,6 +1139,8 @@
     $('recOpenPdf').addEventListener('click', function () { var r = currentRecord(); if (r) openDoc(r.doc); });
     $('recEmailDraft').addEventListener('click', function () { var r = currentRecord(); if (r) emailDraft(r.doc, $('recHelp')); });
     $('recEdit').addEventListener('click', function () { var r = currentRecord(); if (r && r.status !== 'accepted') loadIntoEditor(r, false); });
+    $('recAccept').addEventListener('click', function () { var r = currentRecord(); if (r && r.status !== 'accepted') loadIntoEditor(r, false, true); });
+    $('recInvJump').addEventListener('click', function () { $('invCard').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
     $('recDuplicate').addEventListener('click', function () { var r = currentRecord(); if (r) loadIntoEditor(r, true); });
     $('recDelete').addEventListener('click', function () {
       var r = currentRecord(); if (!r) return;

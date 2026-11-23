@@ -186,3 +186,8 @@ code { font-size: 12px; background: var(--bg); padding: 1px 4px; border-radius: 
 @media (max-width: 400px) { .brand { font-size: 15px; } .ref-badge { font-size: 11px; } .topbar { padding-left: 10px; padding-right: 10px; } .topbar-right { gap: 6px; } .btn.newq { padding: 6px 9px; font-size: 13px; } }
 .brand { white-space: nowrap; }
 @media (max-width: 400px) { .ref-badge { display: none; } }
+
+/* ---------- Required fields ---------- */
+.req { font-size: 11px; font-weight: 700; color: var(--bad); text-transform: uppercase; letter-spacing: .4px; margin-left: 4px; }
+input.missing, textarea.missing { border: 2px solid var(--bad) !important; background: var(--bad-bg) !important; }
+.alert .fix-btn { display: block; margin-top: 8px; width: 100%; background: var(--bad); color: #fff; border: none; border-radius: 10px; padding: 10px 12px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; }

@@ -113,9 +113,10 @@
     </div>
 
     <div class="card">
-      <h2>Client &amp; job</h2>
-      <label class="field">Client name<input id="cName" type="text" autocomplete="off" placeholder="e.g. Jane Smith"></label>
-      <label class="field">Job address<input id="cAddress" type="text" autocomplete="off" placeholder="Street, suburb, city"></label>
+      <h2 id="clientCardTitle">Client &amp; job</h2>
+      <div id="clientMissing" class="alert error" hidden></div>
+      <label class="field">Client name <span class="req">required</span><input id="cName" type="text" autocomplete="off" placeholder="e.g. Jane Smith"></label>
+      <label class="field">Job address <span class="req">required</span><input id="cAddress" type="text" autocomplete="off" placeholder="Street, suburb, city"></label>
       <div class="grid2">
         <label class="field">Client phone (optional)<input id="cPhone" type="tel" autocomplete="off"></label>
         <label class="field">Client email (optional)<input id="cEmail" type="email" autocomplete="off"></label>
@@ -135,7 +136,8 @@
 
   <!-- ================= SEND ================= -->
   <section id="view-send" class="view" aria-label="Preview and send">
-    <div id="sendProblems"></div>
+    <button class="btn ghost small" type="button" data-goto="quote" id="btnBackQuote">← Back to Quote (edit client, price, scope)</button>
+    <div id="sendProblems" class="mt"></div>
     <div class="card actions-card">
       <div id="docStatus" class="status-banner"></div>
       <div class="btn-col">

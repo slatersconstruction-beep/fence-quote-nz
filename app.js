@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.2.0';
+  var APP_VERSION = '1.3.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -331,7 +331,15 @@
   function renderSendIfVisible() { if ($('view-send').classList.contains('active')) renderSend(); }
   function renderSend() {
     var probs = problems(), block = blocking();
-    $('sendProblems').innerHTML = probs.map(function (p) { return '<div class="alert ' + (p.indexOf('Tip:') === 0 ? 'info' : 'error') + '">' + esc(p) + '</div>'; }).join('');
+    $('sendProblems').innerHTML = probs.map(function (p) {
+      var tip = p.indexOf('Tip:') === 0, fix = '';
+      if (!tip) {
+        if (p.indexOf('client name') >= 0) fix = 'cName'; else if (p.indexOf('job address') >= 0) fix = 'cAddress';
+        else if (p.indexOf('Scope') === 0) fix = 'qScope'; else if (p.indexOf('Takeoff') === 0 || p.indexOf('Price is') === 0) fix = 'inLength';
+        else if (p.indexOf('trading name') >= 0) fix = 'pTrading';
+      }
+      return '<div class="alert ' + (tip ? 'info' : 'error') + '">' + esc(p) + (fix ? '<button type="button" class="fix-btn" data-fix="' + fix + '">Fix this now →</button>' : '') + '</div>';
+    }).join('');
     var doc = buildDoc();
     renderDocHTML(doc, $('docPreview'));
     $('docStatus').className = 'status-banner awaiting';
@@ -561,7 +569,34 @@
   }
 
   // ---------------- navigation ----------------
-  function go(view) {
+  // Required details: never let the quote move on to Send without them.
+  function missingRequired() {
+    var m = [];
+    if (!(Number(draft.input.length) > 0)) m.push({ id: 'inLength', view: 'measure', label: 'fence length' });
+    if (!draft.client.name.trim()) m.push({ id: 'cName', view: 'quote', label: "client's name" });
+    if (!draft.client.address.trim()) m.push({ id: 'cAddress', view: 'quote', label: 'job address' });
+    return m;
+  }
+  function showMissing(m) {
+    var labels = m.map(function (x) { return x.label; });
+    var txt = labels.length === 1 ? labels[0] : labels.slice(0, -1).join(', ') + ' and ' + labels[labels.length - 1];
+    var first = m[0];
+    go(first.view, true);
+    m.forEach(function (x) { var el = $(x.id); if (el) el.classList.add('missing'); });
+    var q = m.filter(function (x) { return x.view === 'quote'; });
+    if (q.length) { $('clientMissing').hidden = false; $('clientMissing').textContent = '⚠ Please enter the ' + q.map(function (x) { return x.label; }).join(' and ') + ' before you can preview, send or get it signed.'; }
+    var el = $(first.id);
+    setTimeout(function () { el.scrollIntoView({ block: 'center' }); try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } }, 60);
+    toast('Enter the ' + txt + ' first');
+  }
+  function clearMissing() {
+    ['inLength', 'cName', 'cAddress'].forEach(function (id) { var el = $(id); if (el && el.value.trim()) el.classList.remove('missing'); });
+    var m = missingRequired().filter(function (x) { return x.view === 'quote'; });
+    if (!m.length) $('clientMissing').hidden = true;
+    else if (!$('clientMissing').hidden) $('clientMissing').textContent = '⚠ Please enter the ' + m.map(function (x) { return x.label; }).join(' and ') + ' before you can preview, send or get it signed.';
+  }
+  function go(view, skipCheck) {
+    if (view === 'send' && !skipCheck) { var miss = missingRequired(); if (miss.length) { showMissing(miss); return; } }
     document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + view); });
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-goto') === view || (view === 'record' && t.getAttribute('data-goto') === 'saved')); });
     if (view === 'send') renderSend();
@@ -580,6 +615,16 @@
   // ---------------- events ----------------
   function bind() {
     document.addEventListener('click', function (e) {
+      var fx = e.target.closest('[data-fix]');
+      if (fx) {
+        var id = fx.getAttribute('data-fix');
+        var view = { cName: 'quote', cAddress: 'quote', qScope: 'quote', inLength: 'measure', pTrading: 'settings' }[id];
+        if (id === 'cName' || id === 'cAddress') { var mm = missingRequired().filter(function (x) { return x.id === id; }); if (!mm.length) mm = [{ id: id, view: view, label: id === 'cName' ? "client's name" : 'job address' }]; showMissing(mm.concat(missingRequired().filter(function (x) { return x.id !== id && x.view === 'quote'; }))); return; }
+        go(view, true); if (view === 'settings') setTab('profile');
+        var target = $(id); target.classList.add('missing');
+        setTimeout(function () { target.scrollIntoView({ block: 'center' }); try { target.focus({ preventScroll: true }); } catch (er) { target.focus(); } }, 60);
+        return;
+      }
       var g = e.target.closest('[data-goto]');
       if (g) { go(g.getAttribute('data-goto')); var st = g.getAttribute('data-settab'); if (st && g.classList.contains('btn')) setTab(st); return; }
       var s = e.target.closest('.seg-btn'); if (s) { setTab(s.getAttribute('data-settab')); return; }
@@ -623,6 +668,7 @@
     $('inRound').addEventListener('change', function () { draft.roundTo = Number(this.value); recalc(); });
     // client & quote doc fields
     [['cName', 'name'], ['cAddress', 'address'], ['cPhone', 'phone'], ['cEmail', 'email']].forEach(function (p) { $(p[0]).addEventListener('input', function () { draft.client[p[1]] = this.value; saveDraft(); }); });
+    ['cName', 'cAddress', 'inLength', 'qScope', 'pTrading'].forEach(function (id) { var el = $(id); if (el) el.addEventListener('input', function () { if (this.value.trim()) this.classList.remove('missing'); clearMissing(); }); });
     $('qRef').addEventListener('change', function () { var v = this.value.trim(); var r = findRecord(v); if (!v || (r && r.status === 'accepted')) { toast(v ? 'Ref ' + v + ' is already accepted. Pick another.' : 'Ref required'); this.value = draft.ref; return; } draft.ref = v; saveDraft(); $('refBadge').textContent = v; });
     $('qIssue').addEventListener('change', function () { draft.issueDate = this.value; draft.expiryDate = addDays(this.value, profile.validityDays || 30); $('qExpiry').value = draft.expiryDate; saveDraft(); });
     $('qExpiry').addEventListener('change', function () { draft.expiryDate = this.value; saveDraft(); });
@@ -643,7 +689,7 @@
     $('btnAccept').addEventListener('click', doAccept);
     sigBind();
     // saved / record
-    function startNew() { $('newDlg').hidden = true; draft = newDraft(); saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc(); renderSaved(); go('measure'); window.scrollTo(0, 0); toast('New quote ' + draft.ref + ' started'); }
+    function startNew() { $('newDlg').hidden = true; document.querySelectorAll('.missing').forEach(function (el) { el.classList.remove('missing'); }); $('clientMissing').hidden = true; draft = newDraft(); saveDraft(); fillMeasureInputs(); fillQuoteInputs(); recalc(); renderSaved(); go('measure'); window.scrollTo(0, 0); toast('New quote ' + draft.ref + ' started'); }
     function askNew() {
       var started = String(draft.input.length || '').trim() !== '' || draft.client.name.trim() !== '' || draft.client.address.trim() !== '';
       if (!started) { startNew(); return; }

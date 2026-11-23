@@ -98,6 +98,12 @@
     heading('Payment terms');
     text(doc.paymentTerms || '-');
 
+    if (doc.schedule) {
+      heading('Start date & job length');
+      text('Start date: ' + doc.schedule.startLabel);
+      text('Job length: ' + doc.schedule.durationLabel);
+    }
+
     // ---------- Price ----------
     var p = doc.price;
     var disc = p.discountPct > 0;

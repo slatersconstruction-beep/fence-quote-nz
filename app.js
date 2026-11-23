@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.7.0';
+  var APP_VERSION = '1.8.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -30,6 +30,12 @@
   function todayISO() { var p = nzParts(); return p.year + '-' + p.month + '-' + p.day; }
   function addDays(iso, days) { var d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + Number(days || 0)); return d.toISOString().slice(0, 10); }
   function dateLabel(iso) { if (!iso) return '-'; var d = new Date(iso + 'T12:00:00Z'); return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
+  function weekdayDateLabel(iso) { if (!iso) return ''; var d = new Date(iso + 'T12:00:00Z'); return d.toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
+  function scheduleOf(dr) {
+    var days = Number(dr.durationDays) || 0;
+    return { startDate: dr.startDate || '', startLabel: dr.startDate ? weekdayDateLabel(dr.startDate) : 'To be confirmed', durationDays: days,
+      durationLabel: days > 0 ? 'About ' + days + ' working day' + (days === 1 ? '' : 's') + ' (weather permitting)' : 'To be confirmed' };
+  }
   function dateTimeLabel(d) { return new Date(d).toLocaleString('en-NZ', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true, timeZoneName: 'short' }); }
 
   // ---------------- state ----------------
@@ -54,7 +60,7 @@
     var issue = todayISO();
     return {
       id: 'd' + Date.now(), ref: nextRef(), input: { length: '', height: 1.8 }, options: clone(D.defaults.options),
-      labour: [{ name: (profile.contactPerson || 'Me'), hours: 8, rate: 75 }], extras: [], marginPct: 10, roundTo: 0, discountPct: 0,
+      labour: [{ name: (profile.contactPerson || 'Me'), hours: 8, rate: 75 }], extras: [], marginPct: 10, roundTo: 0, discountPct: 0, startDate: '', durationDays: '',
       client: { name: '', address: '', phone: '', email: '' }, issueDate: issue, expiryDate: addDays(issue, profile.validityDays || 30),
       scope: '', scopeEdited: false, exclusions: profile.exclusions, paymentTerms: profile.paymentTerms, optVer: 2
     };
@@ -212,7 +218,7 @@
     $('inMargin').value = draft.marginPct; $('inRound').value = String(draft.roundTo || 0); $('inDiscount').value = draft.discountPct ? draft.discountPct : '';
     $('cName').value = draft.client.name; $('cAddress').value = draft.client.address; $('cPhone').value = draft.client.phone; $('cEmail').value = draft.client.email;
     $('qRef').value = draft.ref; $('qIssue').value = draft.issueDate; $('qExpiry').value = draft.expiryDate;
-    $('qScope').value = draft.scope; $('qExclusions').value = draft.exclusions; $('qTerms').value = draft.paymentTerms;
+    $('qStart').value = draft.startDate || ''; $('qDays').value = draft.durationDays || ''; $('qScope').value = draft.scope; $('qExclusions').value = draft.exclusions; $('qTerms').value = draft.paymentTerms;
   }
 
   // ---------------- client document model ----------------
@@ -226,6 +232,7 @@
       business: businessSnapshot(), client: clone(draft.client), scope: draft.scope,
       exclusions: String(draft.exclusions || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean),
       paymentTerms: draft.paymentTerms,
+      schedule: scheduleOf(draft),
       price: {
         amount: p.clientPrice, gstRegistered: p.registered, gst: p.clientGst, exGst: p.clientExGst,
         discountPct: p.discountPct || 0, listPrice: p.listPrice, discountAmount: p.discountAmount,
@@ -257,6 +264,7 @@
       '<h4>Scope of works</h4><p>' + esc(doc.scope) + '</p>' +
       '<h4>Exclusions</h4><ul>' + (doc.exclusions.length ? doc.exclusions.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') : '<li>None stated</li>') + '</ul>' +
       '<h4>Payment terms</h4><p>' + esc(doc.paymentTerms || '-') + '</p>' +
+      (doc.schedule ? '<h4>Start date &amp; job length</h4><p><b>Start date:</b> ' + esc(doc.schedule.startLabel) + '<br><b>Job length:</b> ' + esc(doc.schedule.durationLabel) + '</p>' : '') +
       '<div class="d-price">' + (p.discountPct > 0 ? '<div class="d-disc"><span>Price</span><span class="was">' + money(p.listPrice) + '</span></div><div class="d-disc save"><span>Discount ' + fmtPct(p.discountPct) + '</span><span>−' + money(p.discountAmount) + '</span></div>' : '') + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><b>' + (p.discountPct > 0 ? 'FIXED PRICE AFTER DISCOUNT' : 'FIXED PRICE') + '</b><span class="amt">' + money(p.amount) + (p.gstRegistered ? ' <small>incl GST</small>' : '') + '</span></div>' +
       (p.gstRegistered ? '<div class="small">Price excluding GST ' + money(p.exGst) + ' · GST (15%) ' + money(p.gst) + '</div>' : '') + '<div class="small">' + esc(p.gstLine) + '</div></div>' +
       '<h4>Acceptance</h4>' + (a ? (a.signature ? '<img class="d-sig" alt="Client signature" src="' + esc(a.signature) + '">' : '') + '<p><b>Accepted by:</b> ' + esc(a.name) + '<br><b>Date and time:</b> ' + esc(a.atLabel) + '<br><span class="small">Ticked: "' + esc(a.statement) + '"</span><br><span class="small" style="word-break:break-all">Record fingerprint (SHA-256): ' + esc(a.hash) + '</span></p>' : '<p>Not yet accepted.</p>') +
@@ -327,7 +335,7 @@
   }
   function emailDraft(doc, helpEl) {
     var subj = 'Quote ' + doc.ref + ' – ' + doc.business.tradingName + (doc.acceptance ? ' (accepted)' : '');
-    var body = 'Hi ' + (doc.client.name || '') + ',\n\n' + (doc.acceptance ? 'Thanks for accepting. Attached is your accepted quote ' : 'Please find attached quote ') + doc.ref + ' for the fence at ' + (doc.client.address || '') + '.\n\nFixed price: ' + money(doc.price.amount) + (doc.price.gstRegistered ? ' incl GST' : ' (no GST)') + '\nValid until: ' + doc.expiryDateLabel + '\n\nKind regards,\n' + (doc.business.contactPerson || '') + '\n' + doc.business.tradingName + (doc.business.phone ? '\n' + doc.business.phone : '');
+    var body = 'Hi ' + (doc.client.name || '') + ',\n\n' + (doc.acceptance ? 'Thanks for accepting. Attached is your accepted quote ' : 'Please find attached quote ') + doc.ref + ' for the fence at ' + (doc.client.address || '') + '.\n\n' + (doc.price.discountPct > 0 ? 'Price before discount: ' + money(doc.price.listPrice) + '\nDiscount ' + fmtPct(doc.price.discountPct) + ': -' + money(doc.price.discountAmount) + '\n' : '') + 'Fixed price: ' + money(doc.price.amount) + (doc.price.gstRegistered ? ' incl GST' : ' (no GST)') + (doc.schedule ? '\nStart date: ' + doc.schedule.startLabel + '\nJob length: ' + doc.schedule.durationLabel : '') + '\nValid until: ' + doc.expiryDateLabel + '\n\nKind regards,\n' + (doc.business.contactPerson || '') + '\n' + doc.business.tradingName + (doc.business.phone ? '\n' + doc.business.phone : '');
     helpEl.innerHTML = '<div class="alert design">⚠️ This email draft has <b>NO attachment</b>. Download the PDF first, then attach it in your mail app before you tap Send. Easier: use <b>Share PDF → Mail/Gmail</b>, which attaches it for you.</div>';
     location.href = 'mailto:' + encodeURIComponent(doc.client.email || '') + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
   }
@@ -369,6 +377,7 @@
     renderDocHTML(rec.doc, $('clientDoc'));
     $('accName').value = ''; $('accAgree').checked = false; $('btnAccept').disabled = true;
     $('ovDiscount').value = draft.discountPct ? draft.discountPct : ''; renderOvPrice(rec.doc);
+    $('ovStart').value = draft.startDate || ''; $('ovDays').value = draft.durationDays || '';
     $('accAgreeText').textContent = ACCEPT_STATEMENT;
     $('acceptForm').hidden = false; $('acceptDone').hidden = true;
     $('clientOverlay').hidden = false; document.body.style.overflow = 'hidden'; sigSetup();
@@ -418,6 +427,17 @@
     if (sig.has || $('accAgree').checked) { $('accAgree').checked = false; sigSetup(); toast('Price changed – please sign again'); }
     renderSaved();
   }
+  function applyOvSchedule() {
+    var sd = $('ovStart').value || '', dd = $('ovDays').value === '' ? '' : Math.max(0, num($('ovDays').value, 0));
+    if (sd === (draft.startDate || '') && String(dd) === String(draft.durationDays || '')) return;
+    draft.startDate = sd; draft.durationDays = dd; saveDraft();
+    $('qStart').value = sd; $('qDays').value = dd;
+    var rec = saveAwaiting();
+    var body = $('clientOverlay').querySelector('.overlay-body'), keep = body.scrollTop;
+    renderDocHTML(rec.doc, $('clientDoc')); body.scrollTop = keep;
+    if (sig.has || $('accAgree').checked) { $('accAgree').checked = false; sigSetup(); toast('Details changed – please sign again'); }
+    renderSaved();
+  }
   function closeClient() { $('clientOverlay').hidden = true; document.body.style.overflow = ''; }
   function updateAcceptBtn() { $('btnAccept').disabled = !($('accName').value.trim().length >= 2 && $('accAgree').checked && sig.has); }
   function doAccept() {
@@ -454,7 +474,7 @@
     var list = records.slice().sort(function (a, b) { return (b.updatedAt || '').localeCompare(a.updatedAt || ''); });
     $('savedList').innerHTML = list.length ? list.map(function (r) {
       return '<button type="button" class="saved-item" data-rec="' + esc(r.id) + '"><div class="s-top"><span>' + esc(r.ref) + ' · ' + esc(r.doc.client.name || 'No name') + '</span><span class="badge ' + r.status + '">' + (r.status === 'accepted' ? 'Accepted' : 'Awaiting') + '</span></div>' +
-        '<div class="s-sub">' + esc(r.doc.client.address || '') + '</div><div class="s-sub">' + money(r.doc.price.amount) + ' · ' + (r.status === 'accepted' ? 'accepted by ' + esc(r.doc.acceptance.name) + ', ' + esc(r.doc.acceptance.atLabel) : 'saved ' + esc(dateTimeLabel(r.updatedAt))) + '</div></button>';
+        '<div class="s-sub">' + esc(r.doc.client.address || '') + '</div><div class="s-sub">' + money(r.doc.price.amount) + (r.doc.schedule ? ' · start ' + esc(r.doc.schedule.startDate ? dateLabel(r.doc.schedule.startDate) : 'TBC') + (r.doc.schedule.durationDays ? ', ' + r.doc.schedule.durationDays + ' day' + (r.doc.schedule.durationDays === 1 ? '' : 's') : '') : '') + ' · ' + (r.status === 'accepted' ? 'accepted by ' + esc(r.doc.acceptance.name) + ', ' + esc(r.doc.acceptance.atLabel) : 'saved ' + esc(dateTimeLabel(r.updatedAt))) + '</div></button>';
     }).join('') : '<p class="muted">No saved quotes yet. A quote is saved when you share, download or open its PDF, or when a client accepts it.</p>';
   }
   var deleteArmed = false;
@@ -806,6 +826,9 @@
     // client overlay
     $('btnCloseClient').addEventListener('click', closeClient);
     $('ovDiscount').addEventListener('input', applyOvDiscount);
+    $('ovStart').addEventListener('change', applyOvSchedule); $('ovDays').addEventListener('input', applyOvSchedule);
+    $('qStart').addEventListener('change', function () { draft.startDate = this.value || ''; saveDraft(); renderSendIfVisible(); });
+    $('qDays').addEventListener('input', function () { draft.durationDays = this.value === '' ? '' : Math.max(0, num(this.value, 0)); saveDraft(); renderSendIfVisible(); });
     $('accName').addEventListener('input', updateAcceptBtn);
     $('accAgree').addEventListener('change', updateAcceptBtn);
     $('btnAccept').addEventListener('click', doAccept);

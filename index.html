@@ -132,6 +132,10 @@
         <label class="field">Issue date<input id="qIssue" type="date"></label>
         <label class="field">Valid until<input id="qExpiry" type="date"></label>
       </div>
+      <div>
+        <label class="field">Start date <span class="small muted">(blank = to be confirmed)</span><input id="qStart" type="date"></label>
+        <label class="field">Job length (working days)<input id="qDays" type="number" inputmode="decimal" step="0.5" min="0" placeholder="e.g. 2"></label>
+      </div>
       <label class="field">Scope of works <button type="button" class="link-btn" id="btnRegenScope">↻ Rebuild from takeoff</button>
         <textarea id="qScope" rows="7"></textarea></label>
       <div class="dictate-row"><button type="button" class="btn mic-btn" data-dictate="qScope">🎤 Speak the scope</button><p class="small dictate-live" hidden></p><div class="alert info dictate-help mt" hidden></div></div>
@@ -329,6 +333,13 @@
         <label class="field">Discount for accepting today (%) <span class="small muted">– optional, tradie's choice</span>
           <input id="ovDiscount" type="number" inputmode="decimal" step="0.5" min="0" max="100" placeholder="0"></label>
         <p class="small" id="ovDiscountNote">Type a percentage and the price on the quote above updates straight away.</p>
+      </div>
+      <div class="disc-offer">
+        <b>Start date &amp; job length</b> <span class="small muted">– agree these together, or leave blank for "to be confirmed"</span>
+        <div class="mt">
+          <label class="field">Start date<input id="ovStart" type="date"></label>
+          <label class="field">Job length (working days)<input id="ovDays" type="number" inputmode="decimal" step="0.5" min="0" placeholder="e.g. 2"></label>
+        </div>
       </div>
       <h2>Accept this quote</h2>
       <div class="ov-price" id="ovPrice"></div>

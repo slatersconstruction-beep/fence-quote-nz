@@ -55,11 +55,12 @@
       id: 'd' + Date.now(), ref: nextRef(), input: { length: '', height: 1.8 }, options: clone(D.defaults.options),
       labour: [{ name: (profile.contactPerson || 'Me'), hours: 8, rate: 75 }], extras: [], marginPct: 10, roundTo: 0,
       client: { name: '', address: '', phone: '', email: '' }, issueDate: issue, expiryDate: addDays(issue, profile.validityDays || 30),
-      scope: '', scopeEdited: false, exclusions: profile.exclusions, paymentTerms: profile.paymentTerms
+      scope: '', scopeEdited: false, exclusions: profile.exclusions, paymentTerms: profile.paymentTerms, optVer: 2
     };
   }
   if (!draft || !draft.ref) draft = newDraft();
   draft.options = Object.assign(clone(D.defaults.options), draft.options || {});
+  if (!draft.optVer) { if (Number(draft.options.maxCentres) === 2.4) draft.options.maxCentres = 1.8; if (draft.options.railId === 'bn-0308502') draft.options.railId = 'auto'; draft.optVer = 2; }
   function saveDraft() { save(K.draft, draft); }
 
   // ---------------- catalogue with overrides ----------------
@@ -123,8 +124,8 @@
   }
   function fillRailSelect() {
     var cat = catalogue();
-    $('optRail').innerHTML = cat.rails.map(function (r) { return '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>'; }).join('');
-    $('optRail').value = draft.options.railId || cat.rails[0].id;
+    $('optRail').innerHTML = '<option value="auto">Auto (cheapest that fits)</option>' + cat.rails.map(function (r) { return '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>'; }).join('');
+    $('optRail').value = cat.rails.some(function (r) { return r.id === draft.options.railId; }) ? draft.options.railId : 'auto';
   }
   function statusTag(item) {
     if (item.overridden) return '<span class="tag override">your price</span>';

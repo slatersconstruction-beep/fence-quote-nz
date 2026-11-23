@@ -44,7 +44,7 @@ var FQ_DATA = {
 
 FQ_DATA.defaults = {
   options: {
-    maxCentres: 2.4, embedment: 0.6, holeDiameter: 0.25, railRows: 'auto', groundClearance: 0.05,
+    maxCentres: 1.8, embedment: 0.6, holeDiameter: 0.25, railRows: 'auto', groundClearance: 0.05,
     palingGapMm: 0, palingWastePct: 10, fixingWastePct: 10, nailsPerPalingPerRail: 2, railFixingsPerConnection: 2,
     postAboveFence: 0, extraHoleDepth: 0, palingId: 'auto', railId: '', exposure: 'normal', ground: 'firm', special: 'none', frontYard: false
   },
@@ -96,10 +96,10 @@ FQ_DATA.sources = [
 /* Estimating assumptions (NOT legal requirements) shown in the app */
 FQ_DATA.assumptions = [
   'One straight run on level ground; no gates, corners, steps or slopes.',
-  'Post centres = length ÷ number of bays, where bays = length ÷ max centres rounded up. End posts included.',
+  'Post centres = length ÷ number of bays, where bays = length ÷ max centres rounded up. End posts included. Default maximum 1.8 m (Slaters standard; common NZ practice is 1.8–2.4 m, there is no Building Code maximum for an exempt fence).',
   'Post length needed = finished height + embedment; the shortest stock length that covers it is chosen.',
   'Finished height = top of palings above ground. Paling length needed = finished height − ground clearance. A paling shorter than that is rejected, never used.',
-  'Rail rows: 2 up to 1.2 m high, 3 above (adjustable). Rail joints land on posts; each stock length spans as many whole bays as fit.',
+  'Rail rows: 2 up to 1.2 m high, 3 above (adjustable). Rail joints land on posts; each stock length spans as many whole bays as fit. Rail stock is auto-picked (4.8 m or 6.0 m) for the lowest cost unless you choose one.',
   'Palings butted (0 mm gap) unless you set a gap (+) or overlap (−). Waste % added for splits and offcuts.',
   'Paling nails: 2 per paling per rail. Rail fixings: 2 screws per rail-to-post connection, with extra at joint posts.',
   'Concrete: hole volume (π × r² × depth) less the buried post volume, ÷ bag yield. Part bags can be shared between holes.',

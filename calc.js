@@ -71,7 +71,13 @@
 
     // ---------- RAILS ----------
     var railStock = (cat.rails || []).slice().sort(function (a, b) { return a.lengthM - b.lengthM; });
-    var rail = (opt.railId && railStock.filter(function (r) { return r.id === opt.railId; })[0]) || railStock[0] || null;
+    var rail = (opt.railId && opt.railId !== 'auto' && railStock.filter(function (r) { return r.id === opt.railId; })[0]) || null;
+    if (!rail && railStock.length) {
+      // auto: cheapest stock length that spans at least one bay
+      var cBays = Math.max(1, Math.ceil(L / maxC - 1e-7)), cCentres = L / cBays, best = null;
+      railStock.forEach(function (r) { var per = Math.floor(r.lengthM / cCentres + EPS); if (per < 1) return; var cost = Math.ceil(cBays / per - 1e-7) * Number(r.price); if (!best || cost < best.cost - 1e-9) best = { r: r, cost: cost }; });
+      rail = best ? best.r : railStock[0];
+    }
     if (!rail) errors.push('No rail in the price list.');
 
     if (errors.length) return { ok: false, errors: errors, warnings: warnings, notes: notes, lines: [], total: 0 };
@@ -144,6 +150,7 @@
     if (embed < 0.6 - EPS) warnings.push({ level: 'design', text: 'Embedment under 600 mm is below the usual rule of thumb for a paling fence. Estimating assumption only; check for your site.' });
     if (embed + EPS < H / 3) warnings.push({ level: 'design', text: 'Embedment is less than one third of the fence height (rule of thumb). Consider deeper holes.' });
     if (maxC > 2.4 + EPS) warnings.push({ level: 'design', text: 'Post centres over 2.4 m are wider than typical for 75×50 rails. Check rail sizing.' });
+    if (maxC > 1.8 + EPS && maxC <= 2.4 + EPS) warnings.push({ level: 'design', text: 'Post centres over 1.8 m: wider than the Slaters default. Fine for many sheltered sites, but use 1.8 m or less for taller or exposed fences.' });
     if (opt.exposure === 'high') warnings.push({ level: 'design', text: 'High wind exposure: standard rules of thumb may not be adequate. Get a site-specific design (post size, centres, footing).' });
     if (opt.ground === 'soft') warnings.push({ level: 'design', text: 'Soft, filled or wet ground: footings may need to be larger or deeper. Get a site-specific design.' });
     if (opt.ground === 'rock') warnings.push({ level: 'design', text: 'Rock or hard ground: allow for core drilling / breaking out; price extra time and plant.' });

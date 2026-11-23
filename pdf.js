@@ -133,6 +133,16 @@
     }
     y = y0 + boxH + 4;
 
+    // ---------- How to pay ----------
+    if (b.bankAccountNumber) {
+      ensure(36); heading('How to pay');
+      if (b.bankAccountName) text('Account name: ' + b.bankAccountName);
+      text('Account number: ' + b.bankAccountNumber + (b.bankName ? ' (' + b.bankName + ')' : ''));
+      text('Reference: ' + doc.ref);
+      var dm = /(\d+(?:\.\d+)?)\s*%\s*deposit/i.exec(doc.paymentTerms || '');
+      if (dm) text('Deposit (' + Number(dm[1]) + '%): ' + money(Math.round(p.amount * Number(dm[1])) / 100) + ' on acceptance');
+    }
+
     // ---------- Acceptance ----------
     ensure(acc ? (acc.signature ? 62 : 36) : 34);
     heading('Acceptance');

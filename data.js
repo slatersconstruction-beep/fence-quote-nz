@@ -50,7 +50,7 @@ FQ_DATA.defaults = {
   },
   profile: {
     tradingName: 'Slaters Construction', legalName: '', contactPerson: 'Karl', phone: '', email: '', address: '',
-    gstRegistered: true, gstNumber: '', nzbn: '', quotePrefix: 'SC', validityDays: 30,
+    gstRegistered: true, gstNumber: '', nzbn: '', bankAccountName: '', bankAccountNumber: '', bankName: '', quotePrefix: 'SC', validityDays: 30,
     paymentTerms: '50% deposit on acceptance to secure materials and booking. Balance due within 7 days of completion invoice. Payment by bank transfer.',
     exclusions: [
       'Removal and disposal of any existing fence, vegetation or rubbish (unless listed in scope)',

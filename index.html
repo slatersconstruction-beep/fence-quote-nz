@@ -229,6 +229,12 @@
           <label class="field">GST number (optional)<input id="pGstNo" type="text" inputmode="numeric" placeholder="123-456-789"></label>
           <label class="field">NZBN (optional)<input id="pNzbn" type="text" inputmode="numeric" placeholder="94290…"></label>
         </div>
+        <h3 class="mt">Bank details for client payments</h3>
+        <p class="small muted">Shown on every quote and PDF under "How to pay", with the quote number as the payment reference.</p>
+        <label class="field">Bank account name<input id="pBankAccName" type="text" autocomplete="off" placeholder="e.g. Slaters Construction Ltd"></label>
+        <label class="field">Bank account number<input id="pBankAccNo" type="text" inputmode="numeric" autocomplete="off" placeholder="12-3456-7890123-00"></label>
+        <p class="small" id="pBankAccHint"></p>
+        <label class="field">Bank (optional)<input id="pBankName" type="text" autocomplete="off" placeholder="e.g. ANZ, ASB, BNZ, Westpac, Kiwibank"></label>
         <div class="grid2">
           <label class="field">Quote ref prefix<input id="pPrefix" type="text"></label>
           <label class="field">Quote valid for (days)<input id="pValidity" type="number" inputmode="numeric" min="1"></label>

@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.8.0';
+  var APP_VERSION = '1.9.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -30,6 +30,19 @@
   function todayISO() { var p = nzParts(); return p.year + '-' + p.month + '-' + p.day; }
   function addDays(iso, days) { var d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + Number(days || 0)); return d.toISOString().slice(0, 10); }
   function dateLabel(iso) { if (!iso) return '-'; var d = new Date(iso + 'T12:00:00Z'); return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
+  // NZ bank account: bank(2)-branch(4)-account(7)-suffix(2 or 3)
+  function formatNzAcc(v) {
+    v = String(v || '').trim(); var d = v.replace(/\D/g, '');
+    if (d.length === 15 || d.length === 16) return d.slice(0, 2) + '-' + d.slice(2, 6) + '-' + d.slice(6, 13) + '-' + d.slice(13);
+    return v;
+  }
+  function bankHint() {
+    var el = $('pBankAccHint'); if (!el) return;
+    var d = $('pBankAccNo').value.replace(/\D/g, '');
+    el.textContent = !d ? '' : (d.length === 15 || d.length === 16) ? '✓ ' + formatNzAcc($('pBankAccNo').value) : 'Check the number: NZ accounts have 15 or 16 digits, like 12-3456-7890123-00 (you have ' + d.length + ').';
+    el.className = 'small ' + (!d || d.length === 15 || d.length === 16 ? 'ok-text' : 'bad-text');
+  }
+  function depositOf(doc) { var m = /(\d+(?:\.\d+)?)\s*%\s*deposit/i.exec(doc.paymentTerms || ''); if (!m) return null; var pct = Number(m[1]); return { pct: pct, amount: Math.round(doc.price.amount * pct) / 100 }; }
   function weekdayDateLabel(iso) { if (!iso) return ''; var d = new Date(iso + 'T12:00:00Z'); return d.toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
   function scheduleOf(dr) {
     var days = Number(dr.durationDays) || 0;
@@ -223,7 +236,7 @@
 
   // ---------------- client document model ----------------
   function businessSnapshot() {
-    return { tradingName: profile.tradingName, legalName: profile.legalName, contactPerson: profile.contactPerson, phone: profile.phone, email: profile.email, address: profile.address, gstNumber: profile.gstRegistered ? profile.gstNumber : '', nzbn: profile.nzbn };
+    return { tradingName: profile.tradingName, legalName: profile.legalName, contactPerson: profile.contactPerson, phone: profile.phone, email: profile.email, address: profile.address, gstNumber: profile.gstRegistered ? profile.gstNumber : '', nzbn: profile.nzbn, bankAccountName: profile.bankAccountName || '', bankAccountNumber: profile.bankAccountNumber || '', bankName: profile.bankName || '' };
   }
   function buildDoc() {
     var p = pricing;
@@ -249,11 +262,18 @@
     if (!draft.client.address.trim()) out.push('Enter the job address on the Quote tab.');
     if (!draft.scope.trim()) out.push('Scope of works is empty.');
     if (!(pricing.clientPrice > 0)) out.push('Price is $0.');
+    if (!profile.bankAccountNumber) out.push('Tip: add your bank account in My business details so the client knows where to pay.');
     if (profile.gstRegistered && !profile.gstNumber) out.push('Tip: add your GST number in My business details (optional on a quote).');
     return out;
   }
   function blocking() { return problems().filter(function (p) { return p.indexOf('Tip:') !== 0; }); }
 
+  function howToPayHTML(doc) {
+    var b = doc.business; if (!b.bankAccountNumber) return '';
+    var dep = depositOf(doc);
+    return '<h4>How to pay</h4><p>' + (b.bankAccountName ? '<b>Account name:</b> ' + esc(b.bankAccountName) + '<br>' : '') + '<b>Account number:</b> ' + esc(b.bankAccountNumber) + (b.bankName ? ' (' + esc(b.bankName) + ')' : '') +
+      '<br><b>Reference:</b> ' + esc(doc.ref) + (dep ? '<br><b>Deposit (' + dep.pct + '%):</b> ' + money(dep.amount) + ' on acceptance' : '') + '</p>';
+  }
   function renderDocHTML(doc, el) {
     var b = doc.business, a = doc.acceptance, p = doc.price;
     var biz = [b.legalName && b.legalName !== b.tradingName ? esc(b.legalName) : '', b.contactPerson ? 'Contact: ' + esc(b.contactPerson) : '', b.phone ? 'Phone: ' + esc(b.phone) : '', b.email ? 'Email: ' + esc(b.email) : '', b.address ? esc(b.address) : '', p.gstRegistered && b.gstNumber ? 'GST No: ' + esc(b.gstNumber) : '', b.nzbn ? 'NZBN: ' + esc(b.nzbn) : ''].filter(Boolean).join('<br>');
@@ -267,6 +287,7 @@
       (doc.schedule ? '<h4>Start date &amp; job length</h4><p><b>Start date:</b> ' + esc(doc.schedule.startLabel) + '<br><b>Job length:</b> ' + esc(doc.schedule.durationLabel) + '</p>' : '') +
       '<div class="d-price">' + (p.discountPct > 0 ? '<div class="d-disc"><span>Price</span><span class="was">' + money(p.listPrice) + '</span></div><div class="d-disc save"><span>Discount ' + fmtPct(p.discountPct) + '</span><span>−' + money(p.discountAmount) + '</span></div>' : '') + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><b>' + (p.discountPct > 0 ? 'FIXED PRICE AFTER DISCOUNT' : 'FIXED PRICE') + '</b><span class="amt">' + money(p.amount) + (p.gstRegistered ? ' <small>incl GST</small>' : '') + '</span></div>' +
       (p.gstRegistered ? '<div class="small">Price excluding GST ' + money(p.exGst) + ' · GST (15%) ' + money(p.gst) + '</div>' : '') + '<div class="small">' + esc(p.gstLine) + '</div></div>' +
+      howToPayHTML(doc) +
       '<h4>Acceptance</h4>' + (a ? (a.signature ? '<img class="d-sig" alt="Client signature" src="' + esc(a.signature) + '">' : '') + '<p><b>Accepted by:</b> ' + esc(a.name) + '<br><b>Date and time:</b> ' + esc(a.atLabel) + '<br><span class="small">Ticked: "' + esc(a.statement) + '"</span><br><span class="small" style="word-break:break-all">Record fingerprint (SHA-256): ' + esc(a.hash) + '</span></p>' : '<p>Not yet accepted.</p>') +
       '<div class="d-foot">This is a quote, not a tax invoice.</div>';
   }
@@ -335,7 +356,7 @@
   }
   function emailDraft(doc, helpEl) {
     var subj = 'Quote ' + doc.ref + ' – ' + doc.business.tradingName + (doc.acceptance ? ' (accepted)' : '');
-    var body = 'Hi ' + (doc.client.name || '') + ',\n\n' + (doc.acceptance ? 'Thanks for accepting. Attached is your accepted quote ' : 'Please find attached quote ') + doc.ref + ' for the fence at ' + (doc.client.address || '') + '.\n\n' + (doc.price.discountPct > 0 ? 'Price before discount: ' + money(doc.price.listPrice) + '\nDiscount ' + fmtPct(doc.price.discountPct) + ': -' + money(doc.price.discountAmount) + '\n' : '') + 'Fixed price: ' + money(doc.price.amount) + (doc.price.gstRegistered ? ' incl GST' : ' (no GST)') + (doc.schedule ? '\nStart date: ' + doc.schedule.startLabel + '\nJob length: ' + doc.schedule.durationLabel : '') + '\nValid until: ' + doc.expiryDateLabel + '\n\nKind regards,\n' + (doc.business.contactPerson || '') + '\n' + doc.business.tradingName + (doc.business.phone ? '\n' + doc.business.phone : '');
+    var body = 'Hi ' + (doc.client.name || '') + ',\n\n' + (doc.acceptance ? 'Thanks for accepting. Attached is your accepted quote ' : 'Please find attached quote ') + doc.ref + ' for the fence at ' + (doc.client.address || '') + '.\n\n' + (doc.price.discountPct > 0 ? 'Price before discount: ' + money(doc.price.listPrice) + '\nDiscount ' + fmtPct(doc.price.discountPct) + ': -' + money(doc.price.discountAmount) + '\n' : '') + 'Fixed price: ' + money(doc.price.amount) + (doc.price.gstRegistered ? ' incl GST' : ' (no GST)') + (doc.schedule ? '\nStart date: ' + doc.schedule.startLabel + '\nJob length: ' + doc.schedule.durationLabel : '') + '\nValid until: ' + doc.expiryDateLabel + (doc.business.bankAccountNumber ? '\n\nHow to pay: bank transfer to ' + (doc.business.bankAccountName ? doc.business.bankAccountName + ', ' : '') + doc.business.bankAccountNumber + (doc.business.bankName ? ' (' + doc.business.bankName + ')' : '') + ', reference ' + doc.ref + (depositOf(doc) ? '\nDeposit (' + depositOf(doc).pct + '%): ' + money(depositOf(doc).amount) + ' on acceptance' : '') : '') + '\n\nKind regards,\n' + (doc.business.contactPerson || '') + '\n' + doc.business.tradingName + (doc.business.phone ? '\n' + doc.business.phone : '');
     helpEl.innerHTML = '<div class="alert design">⚠️ This email draft has <b>NO attachment</b>. Download the PDF first, then attach it in your mail app before you tap Send. Easier: use <b>Share PDF → Mail/Gmail</b>, which attaches it for you.</div>';
     location.href = 'mailto:' + encodeURIComponent(doc.client.email || '') + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
   }
@@ -346,12 +367,13 @@
     var probs = problems(), block = blocking();
     $('sendProblems').innerHTML = probs.map(function (p) {
       var tip = p.indexOf('Tip:') === 0, fix = '';
+      if (p.indexOf('bank account') >= 0) fix = 'pBankAccNo';
       if (!tip) {
         if (p.indexOf('client name') >= 0) fix = 'cName'; else if (p.indexOf('job address') >= 0) fix = 'cAddress';
         else if (p.indexOf('Scope') === 0) fix = 'qScope'; else if (p.indexOf('Takeoff') === 0 || p.indexOf('Price is') === 0) fix = 'inLength';
-        else if (p.indexOf('trading name') >= 0) fix = 'pTrading';
+        else if (p.indexOf('business name') >= 0) fix = 'pTrading';
       }
-      return '<div class="alert ' + (tip ? 'info' : 'error') + '">' + esc(p) + (fix ? '<button type="button" class="fix-btn" data-fix="' + fix + '">Fix this now →</button>' : '') + '</div>';
+      return '<div class="alert ' + (tip ? 'info' : 'error') + '">' + esc(p) + (fix ? '<button type="button" class="fix-btn' + (tip ? ' tip' : '') + '" data-fix="' + fix + '">' + (tip ? 'Add it now →' : 'Fix this now →') + '</button>' : '') + '</div>';
     }).join('');
     var doc = buildDoc();
     renderDocHTML(doc, $('docPreview'));
@@ -500,7 +522,7 @@
   // ---------------- SETTINGS ----------------
   function fillProfile() {
     $('pTrading').value = profile.tradingName; $('pLegal').value = profile.legalName; $('pContact').value = profile.contactPerson; $('pPhone').value = profile.phone; $('pEmail').value = profile.email;
-    $('pAddress').value = profile.address; $('pGstReg').checked = !!profile.gstRegistered; $('pGstNo').value = profile.gstNumber; $('pNzbn').value = profile.nzbn;
+    $('pAddress').value = profile.address; $('pGstReg').checked = !!profile.gstRegistered; $('pGstNo').value = profile.gstNumber; $('pNzbn').value = profile.nzbn; $('pBankAccName').value = profile.bankAccountName || ''; $('pBankAccNo').value = profile.bankAccountNumber || ''; $('pBankName').value = profile.bankName || ''; bankHint();
     $('pPrefix').value = profile.quotePrefix; $('pValidity').value = profile.validityDays; $('pTerms').value = profile.paymentTerms; $('pExclusions').value = profile.exclusions;
     $('pGstNo').disabled = !profile.gstRegistered;
   }
@@ -508,7 +530,7 @@
     var oldTerms = profile.paymentTerms, oldExcl = profile.exclusions;
     profile = {
       tradingName: $('pTrading').value.trim(), legalName: $('pLegal').value.trim(), contactPerson: $('pContact').value.trim(), phone: $('pPhone').value.trim(), email: $('pEmail').value.trim(),
-      address: $('pAddress').value.trim(), gstRegistered: $('pGstReg').checked, gstNumber: $('pGstNo').value.trim(), nzbn: $('pNzbn').value.trim(),
+      address: $('pAddress').value.trim(), gstRegistered: $('pGstReg').checked, gstNumber: $('pGstNo').value.trim(), nzbn: $('pNzbn').value.trim(), bankAccountName: $('pBankAccName').value.trim(), bankAccountNumber: formatNzAcc($('pBankAccNo').value), bankName: $('pBankName').value.trim(),
       quotePrefix: $('pPrefix').value.trim() || 'Q', validityDays: Math.max(1, Math.round(num($('pValidity').value, 30))), paymentTerms: $('pTerms').value, exclusions: $('pExclusions').value
     };
     save(K.profile, profile);
@@ -759,9 +781,9 @@
       var fx = e.target.closest('[data-fix]');
       if (fx) {
         var id = fx.getAttribute('data-fix');
-        var view = { cName: 'quote', cAddress: 'quote', qScope: 'quote', inLength: 'measure', pTrading: 'settings' }[id];
+        var view = { cName: 'quote', cAddress: 'quote', qScope: 'quote', inLength: 'measure', pTrading: 'settings', pBankAccNo: 'settings' }[id];
         if (id === 'cName' || id === 'cAddress') { var mm = missingRequired().filter(function (x) { return x.id === id; }); if (!mm.length) mm = [{ id: id, view: view, label: id === 'cName' ? "client's name" : 'job address' }]; showMissing(mm.concat(missingRequired().filter(function (x) { return x.id !== id && x.view === 'quote'; }))); return; }
-        go(view, true); if (view === 'settings') setTab('profile');
+        var from = document.querySelector('.view.active').id.replace('view-', ''); go(view, true); if (view === 'settings') { setTab('profile'); fillProfile(); bizReturnTo = from; $('btnBizReturn').hidden = false; $('btnBizReturn').textContent = '← Back to your quote'; }
         var target = $(id); target.classList.add('missing');
         setTimeout(function () { target.scrollIntoView({ block: 'center' }); try { target.focus({ preventScroll: true }); } catch (er) { target.focus(); } }, 60);
         return;
@@ -866,6 +888,8 @@
     });
     // settings
     $('btnSaveProfile').addEventListener('click', saveProfile);
+    $('pBankAccNo').addEventListener('input', bankHint);
+    $('pBankAccNo').addEventListener('blur', function () { var f = formatNzAcc(this.value); if (f !== this.value) { this.value = f; saveProfile(); } bankHint(); });
     var profTimer = null;
     $('set-profile').addEventListener('input', function (e) { if (!e.target.matches('input, textarea')) return; clearTimeout(profTimer); profTimer = setTimeout(saveProfile, 500); });
     $('set-profile').addEventListener('change', function (e) { if (e.target.id === 'pGstReg') saveProfile(); });

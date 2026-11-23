@@ -177,5 +177,95 @@
 
   function blob(doc) { return build(doc).output('blob'); }
 
-  root.FQPdf = { build: build, blob: blob, fileName: fileName, latin: latin };
+  // ---------------- Invoice (from an accepted quote) ----------------
+  function invoiceFileName(inv) {
+    var client = (inv.client.name || 'client').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'client';
+    return (inv.gstRegistered ? 'Tax-Invoice_' : 'Invoice_') + String(inv.number).replace(/[^A-Za-z0-9-]+/g, '-') + '_' + client + '.pdf';
+  }
+  function buildInvoice(inv) {
+    var JsPDF = root.jspdf.jsPDF;
+    var pdf = new JsPDF({ unit: 'mm', format: 'a4', compress: true });
+    var W = 210, H = 297, M = 16, CW = W - 2 * M, y = M, green = [31, 81, 48];
+    var b = inv.business, title = inv.gstRegistered ? 'TAX INVOICE' : 'INVOICE';
+    pdf.setProperties({ title: title + ' ' + latin(inv.number) + ' - ' + latin(b.tradingName), author: latin(b.tradingName), creator: 'Fence Quote NZ' });
+    function ensure(h) { if (y + h > H - 18) { pdf.addPage(); y = M; } }
+    function text(str, o) {
+      o = o || {}; pdf.setFont('helvetica', o.bold ? 'bold' : 'normal'); pdf.setFontSize(o.size || 10); pdf.setTextColor.apply(pdf, o.color || [27, 31, 28]);
+      var lines = pdf.splitTextToSize(latin(str), o.width || CW), lh = (o.size || 10) * 0.45;
+      for (var i = 0; i < lines.length; i++) { ensure(lh); pdf.text(lines[i], o.x || M, y + lh * 0.8); y += lh; }
+      y += o.after == null ? 1 : o.after;
+    }
+    function heading(str) { ensure(12); y += 3; text(str.toUpperCase(), { bold: true, size: 10, color: green, after: 1 }); pdf.setDrawColor(220, 224, 218); pdf.line(M, y, W - M, y); y += 2; }
+    function row(label, val, o) {
+      o = o || {}; ensure(7);
+      pdf.setFont('helvetica', o.bold ? 'bold' : 'normal'); pdf.setFontSize(o.size || 10.5); pdf.setTextColor(27, 31, 28);
+      pdf.text(latin(label), M + 2, y + 5); pdf.text(latin(val), W - M - 2, y + 5, { align: 'right' }); y += o.h || 7;
+    }
+    // header
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(24); pdf.setTextColor.apply(pdf, green);
+    pdf.text(title, W - M, y + 9, { align: 'right' });
+    pdf.setFontSize(10); pdf.setTextColor(27, 31, 28);
+    var ry = y + 15, headTop = y;
+    [['Invoice no', inv.number], ['Invoice date', inv.dateLabel], ['Due date', inv.dueLabel], ['Quote ref', inv.quoteRef]].forEach(function (r) {
+      pdf.setFont('helvetica', 'bold'); pdf.text(latin(r[0]) + ':', W - M - 52, ry, { align: 'right' });
+      pdf.setFont('helvetica', 'normal'); pdf.text(latin(r[1]), W - M, ry, { align: 'right' }); ry += 5;
+    });
+    text(b.tradingName, { bold: true, size: 16, color: green, width: 110, after: 0.5 });
+    var bl = [];
+    if (b.legalName && b.legalName !== b.tradingName) bl.push(b.legalName);
+    if (b.phone) bl.push('Phone: ' + b.phone); if (b.email) bl.push('Email: ' + b.email); if (b.address) bl.push(b.address);
+    if (inv.gstRegistered) bl.push('GST No: ' + (b.gstNumber || '-'));
+    if (b.nzbn) bl.push('NZBN: ' + b.nzbn);
+    bl.forEach(function (l) { text(l, { size: 9.5, width: 110, after: 0.2 }); });
+    y = Math.max(y, ry) + 4;
+    pdf.setDrawColor.apply(pdf, green); pdf.setLineWidth(0.8); pdf.line(M, y, W - M, y); pdf.setLineWidth(0.2); y += 4;
+
+    heading('Bill to');
+    text(inv.client.name || '-', { bold: true, after: 0.3 });
+    if (inv.client.address) text(inv.client.address, { after: 0.3 });
+    if (inv.client.phone) text('Phone: ' + inv.client.phone, { after: 0.3 });
+    if (inv.client.email) text('Email: ' + inv.client.email, { after: 0.3 });
+
+    heading('Description');
+    text(inv.description);
+
+    heading('Amount');
+    if (inv.contractList && inv.discountPct > 0) row('Contract price before discount', money(inv.contractList));
+    if (inv.discountPct > 0) row('Discount ' + inv.discountPct + '% (accepted on ' + inv.acceptedLabel + ')', '-' + money(inv.discountAmount));
+    row('Agreed fixed price' + (inv.gstRegistered ? ' (incl GST)' : ''), money(inv.contractPrice));
+    if (inv.previous > 0) row('Less previously invoiced', '-' + money(inv.previous));
+    pdf.setDrawColor(200, 205, 200); pdf.line(M, y + 1, W - M, y + 1); y += 2;
+    row(inv.lineLabel, money(inv.amount), { bold: true });
+    if (inv.gstRegistered) {
+      row('Amount excluding GST', money(inv.exGst), { size: 10 });
+      row('GST (15%)', money(inv.gst), { size: 10 });
+    }
+    // total box
+    ensure(22); y += 2;
+    pdf.setDrawColor.apply(pdf, green); pdf.setLineWidth(0.6); pdf.roundedRect(M, y, CW, 16, 2, 2, 'S'); pdf.setLineWidth(0.2);
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(12); pdf.setTextColor(27, 31, 28);
+    pdf.text('TOTAL DUE' + (inv.gstRegistered ? ' (incl GST)' : ''), M + 4, y + 10);
+    pdf.setFontSize(18); pdf.text(latin(money(inv.amount)), W - M - 4, y + 10.5, { align: 'right' });
+    y += 20;
+    text(inv.gstRegistered ? 'Total includes GST of ' + money(inv.gst) + '.' : 'No GST charged: ' + b.tradingName + ' is not registered for GST.', { size: 9.5 });
+
+    heading('How to pay');
+    if (b.bankAccountNumber) {
+      if (b.bankAccountName) text('Account name: ' + b.bankAccountName);
+      text('Account number: ' + b.bankAccountNumber + (b.bankName ? ' (' + b.bankName + ')' : ''));
+      text('Reference: ' + inv.number, { bold: true });
+    } else text('Please contact us for payment details. Reference: ' + inv.number);
+    text('Due: ' + inv.dueLabel, { bold: true });
+
+    var pages = pdf.getNumberOfPages();
+    for (var i = 1; i <= pages; i++) {
+      pdf.setPage(i); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(93, 102, 95);
+      pdf.text(latin(title + ' ' + inv.number + ' - ' + b.tradingName + ' - for accepted quote ' + inv.quoteRef), M, H - 9);
+      pdf.text('Page ' + i + ' of ' + pages, W - M, H - 9, { align: 'right' });
+    }
+    return pdf;
+  }
+  function invoiceBlob(inv) { return buildInvoice(inv).output('blob'); }
+
+  root.FQPdf = { build: build, blob: blob, fileName: fileName, latin: latin, buildInvoice: buildInvoice, invoiceBlob: invoiceBlob, invoiceFileName: invoiceFileName };
 })(typeof self !== 'undefined' ? self : this);

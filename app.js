@@ -1,11 +1,11 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '1.9.1';
+  var APP_VERSION = '2.0.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
-  var K = { profile: 'fq_profile', draft: 'fq_draft', prices: 'fq_prices', palings: 'fq_palings', records: 'fq_records', counter: 'fq_counter' };
+  var K = { profile: 'fq_profile', draft: 'fq_draft', prices: 'fq_prices', palings: 'fq_palings', records: 'fq_records', counter: 'fq_counter', invCounter: 'fq_invcounter' };
   var ACCEPT_STATEMENT = 'I have read this quote, including the scope of works, exclusions, payment terms and fixed price, and I accept it.';
 
   // ---------------- storage ----------------
@@ -329,8 +329,8 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
   }
-  function shareDoc(doc, helpEl) {
-    var f = pdfFile(doc); // synchronous, so the tap still counts as a user gesture for navigator.share
+  function shareDoc(doc, helpEl) { shareFile(pdfFile(doc), helpEl); } // built synchronously, so the tap still counts as a user gesture
+  function shareFile(f, helpEl) {
     if (canShareFiles(f.file)) {
       navigator.share({ files: [f.file], title: f.name }).then(function () {
         helpEl.innerHTML = '<div class="alert ok">Handed <b>' + esc(f.name) + '</b> to the app you picked. Check in WhatsApp / Mail that you tapped Send; this app cannot see whether it was sent.</div>';
@@ -484,7 +484,7 @@
       $('acceptForm').hidden = true;
       $('acceptDone').hidden = false;
       $('acceptDone').innerHTML = '<div class="alert ok"><b>Thank you, ' + esc(name) + '.</b> Quote ' + esc(oldRef) + ' was accepted on ' + esc(doc.acceptance.atLabel) + ' and saved.</div>' +
-        '<p class="small">Hand the phone back to ' + esc(profile.contactPerson || 'the contractor') + '.</p><button class="btn primary block" type="button" id="btnAfterAccept">Contractor: open accepted quote & send PDF</button>';
+        '<p class="small">Hand the phone back to ' + esc(profile.contactPerson || 'the contractor') + '.</p><button class="btn primary block" type="button" id="btnAfterAccept">Contractor: open accepted quote – send PDF or create invoice</button>';
       $('btnAfterAccept').onclick = function () { closeClient(); openRecord(rec.id); };
       $('clientOverlay').querySelector('.overlay-body').scrollTop = 0;
       renderSaved();
@@ -500,6 +500,74 @@
     }).join('') : '<p class="muted">No saved quotes yet. A quote is saved when you share, download or open its PDF, or when a client accepts it.</p>';
   }
   var deleteArmed = false;
+  // ---------------- invoices ----------------
+  function nextInvoiceNo() {
+    var n = (load(K.invCounter, 0) || 0) + 1;
+    records.forEach(function (r) { (r.invoices || []).forEach(function (iv) { var m = /(\d+)$/.exec(iv.number); if (m && Number(m[1]) >= n) n = Number(m[1]) + 1; }); });
+    save(K.invCounter, n);
+    return 'INV-' + String(n).padStart(4, '0');
+  }
+  function invoiceOptions(r) {
+    var doc = r.doc, price = doc.price.amount, done = r.invoices || [];
+    var invoiced = done.reduce(function (t, iv) { return t + iv.amount; }, 0);
+    var remaining = Math.round((price - invoiced) * 100) / 100;
+    var dep = depositOf(doc), opts = [];
+    if (remaining <= 0.004) return opts;
+    if (!done.length && dep) opts.push({ kind: 'deposit', label: 'Deposit invoice (' + dep.pct + '%)', amount: dep.amount, due: todayISO(), line: 'Deposit due (' + dep.pct + '% of the agreed price)' });
+    if (done.length) opts.push({ kind: 'balance', label: 'Balance invoice (what is left)', amount: remaining, due: addDays(todayISO(), 7), line: 'Balance due' });
+    else opts.push({ kind: 'full', label: 'Full amount invoice', amount: price, due: addDays(todayISO(), 7), line: 'Amount due' });
+    return opts;
+  }
+  var invSel = 0;
+  function renderInvoices(r) {
+    var card = $('invCard');
+    if (!r || r.status !== 'accepted') { card.hidden = true; return; }
+    card.hidden = false;
+    var opts = invoiceOptions(r);
+    var needGst = profile.gstRegistered && !profile.gstNumber;
+    $('invWarn').innerHTML = needGst ? '<div class="alert error">A tax invoice must show your GST number. Add it in My business details first.<button type="button" class="fix-btn" data-fix="pGstNo">Add GST number →</button></div>'
+      : (!profile.bankAccountNumber ? '<div class="alert info">Tip: add your bank account so the invoice shows where to pay.<button type="button" class="fix-btn tip" data-fix="pBankAccNo">Add it now →</button></div>' : '');
+    $('invCreate').hidden = !opts.length || needGst;
+    if (invSel >= opts.length) invSel = 0;
+    $('invOptions').innerHTML = opts.map(function (o, i) {
+      return '<label class="inv-opt' + (i === invSel ? ' sel' : '') + '"><input type="radio" name="invKind" value="' + i + '"' + (i === invSel ? ' checked' : '') + '><span><b>' + esc(o.label) + '</b><br>' + money(o.amount) + (r.doc.price.gstRegistered ? ' incl GST' : '') + '</span></label>';
+    }).join('');
+    if (opts.length) $('invDue').value = opts[invSel].due;
+    var list = r.invoices || [];
+    $('invList').innerHTML = list.length ? '<h3>Created</h3>' + list.map(function (iv, i) {
+      return '<div class="inv-item"><b>' + esc(iv.number) + '</b> · ' + esc(iv.lineLabel) + ' · <b>' + money(iv.amount) + '</b><div class="small muted">Dated ' + esc(iv.dateLabel) + ' · due ' + esc(iv.dueLabel) + '</div>' +
+        '<div class="inv-btns"><button type="button" class="btn primary" data-inv-share="' + i + '">📤 Share</button><button type="button" class="btn" data-inv-dl="' + i + '">⬇️ Download</button><button type="button" class="btn" data-inv-open="' + i + '">👁 Open</button></div></div>';
+    }).join('') : '';
+    if (!opts.length && list.length) $('invList').insertAdjacentHTML('afterbegin', '<div class="alert ok">✓ The full agreed price has been invoiced.</div>');
+  }
+  function createInvoice() {
+    var r = currentRecord(); if (!r || r.status !== 'accepted') return;
+    var o = invoiceOptions(r)[invSel]; if (!o) return;
+    var doc = r.doc, p = doc.price, reg = !!p.gstRegistered;
+    var now = new Date(), dateISO = todayISO(), due = $('invDue').value || dateISO;
+    var gst = reg ? Math.round(o.amount * 3 / 23 * 100) / 100 : 0;
+    var previous = (r.invoices || []).reduce(function (t, iv) { return t + iv.amount; }, 0);
+    var inv = {
+      number: nextInvoiceNo(), kind: o.kind, lineLabel: o.line, createdAt: now.toISOString(),
+      date: dateISO, dateLabel: dateLabel(dateISO), due: due, dueLabel: due === dateISO ? dateLabel(due) + ' (on receipt)' : dateLabel(due),
+      quoteRef: doc.ref, acceptedLabel: doc.acceptance ? dateLabel(doc.acceptance.at.slice(0, 10)) : '',
+      business: businessSnapshot(), client: clone(doc.client), gstRegistered: reg,
+      description: 'Supply and install timber paling fence at ' + (doc.client.address || 'the job address') + ', as per quote ' + doc.ref + ' accepted' + (doc.acceptance ? ' by ' + doc.acceptance.name + ' on ' + doc.acceptance.atLabel : '') + '.' + (doc.schedule && doc.schedule.startDate ? ' Agreed start date: ' + doc.schedule.startLabel + '.' : ''),
+      contractPrice: p.amount, contractList: p.listPrice, discountPct: p.discountPct || 0, discountAmount: p.discountAmount || 0,
+      previous: Math.round(previous * 100) / 100, amount: o.amount, gst: gst, exGst: Math.round((o.amount - gst) * 100) / 100
+    };
+    r.invoices = (r.invoices || []).concat([inv]); r.updatedAt = now.toISOString();
+    if (!persistRecords()) { toast('Could not save the invoice!'); return; }
+    invSel = 0; renderInvoices(r); renderSaved();
+    $('invHelp').innerHTML = '<div class="alert ok">✓ Invoice <b>' + esc(inv.number) + '</b> created for ' + money(inv.amount) + '. Tap <b>📤 Share</b> to send it by WhatsApp or email.</div>';
+    toast('Invoice ' + inv.number + ' created');
+  }
+  function invFile(inv) {
+    var blob = P.invoiceBlob(inv), name = P.invoiceFileName(inv), file = null;
+    try { file = new File([blob], name, { type: 'application/pdf', lastModified: Date.now() }); } catch (e) {}
+    return { blob: blob, file: file, name: name };
+  }
+
   function openRecord(id) {
     var r = records.filter(function (x) { return x.id === id; })[0]; if (!r) return;
     currentRecordId = id; deleteArmed = false; $('recDelete').textContent = '🗑 Delete record';
@@ -507,6 +575,7 @@
     $('recStatus').className = 'status-banner ' + r.status;
     $('recStatus').textContent = r.status === 'accepted' ? '✔ Accepted by ' + r.doc.acceptance.name + ' · ' + r.doc.acceptance.atLabel + ' · locked' : 'Awaiting acceptance · last saved ' + dateTimeLabel(r.updatedAt);
     $('recEdit').hidden = r.status === 'accepted';
+    invSel = 0; $('invHelp').innerHTML = ''; renderInvoices(r);
     $('recHelp').innerHTML = r.status === 'accepted' ? '<p class="small muted">This is the exact version the client accepted. It cannot be edited; later price or business changes do not affect it. Use "Copy into a new quote" to change anything.</p>' : '';
     go('record');
   }
@@ -781,7 +850,7 @@
       var fx = e.target.closest('[data-fix]');
       if (fx) {
         var id = fx.getAttribute('data-fix');
-        var view = { cName: 'quote', cAddress: 'quote', qScope: 'quote', inLength: 'measure', pTrading: 'settings', pBankAccNo: 'settings' }[id];
+        var view = { cName: 'quote', cAddress: 'quote', qScope: 'quote', inLength: 'measure', pTrading: 'settings', pBankAccNo: 'settings', pGstNo: 'settings' }[id];
         if (id === 'cName' || id === 'cAddress') { var mm = missingRequired().filter(function (x) { return x.id === id; }); if (!mm.length) mm = [{ id: id, view: view, label: id === 'cName' ? "client's name" : 'job address' }]; showMissing(mm.concat(missingRequired().filter(function (x) { return x.id !== id && x.view === 'quote'; }))); return; }
         var from = document.querySelector('.view.active').id.replace('view-', ''); go(view, true); if (view === 'settings') { setTab('profile'); fillProfile(); bizReturnTo = from; $('btnBizReturn').hidden = false; $('btnBizReturn').textContent = '← Back to your quote'; }
         var target = $(id); target.classList.add('missing');
@@ -875,6 +944,17 @@
     $('newDlgDiscard').addEventListener('click', startNew);
     $('newDlgCancel').addEventListener('click', function () { $('newDlg').hidden = true; });
     $('newDlg').addEventListener('click', function (e) { if (e.target === this) this.hidden = true; });
+    $('invMake').addEventListener('click', createInvoice);
+    $('invOptions').addEventListener('change', function (e) { if (e.target.name === 'invKind') { invSel = Number(e.target.value); renderInvoices(currentRecord()); } });
+    $('invList').addEventListener('click', function (e) {
+      var r = currentRecord(); if (!r) return;
+      var t = e.target.closest('[data-inv-share],[data-inv-dl],[data-inv-open]'); if (!t) return;
+      var inv = r.invoices[Number(t.getAttribute('data-inv-share') || t.getAttribute('data-inv-dl') || t.getAttribute('data-inv-open'))];
+      var f = invFile(inv);
+      if (t.hasAttribute('data-inv-share')) shareFile(f, $('invHelp'));
+      else if (t.hasAttribute('data-inv-dl')) { downloadBlob(f.blob, f.name); $('invHelp').innerHTML = '<div class="alert info">Downloaded <b>' + esc(f.name) + '</b>. Android: Files → Downloads.</div>'; }
+      else { var url = URL.createObjectURL(f.blob); if (!window.open(url, '_blank')) downloadBlob(f.blob, f.name); setTimeout(function () { URL.revokeObjectURL(url); }, 120000); }
+    });
     $('recShare').addEventListener('click', function () { var r = currentRecord(); if (r) shareDoc(r.doc, $('recHelp')); });
     $('recDownload').addEventListener('click', function () { var r = currentRecord(); if (r) downloadDoc(r.doc, $('recHelp')); });
     $('recOpenPdf').addEventListener('click', function () { var r = currentRecord(); if (r) openDoc(r.doc); });
@@ -910,7 +990,7 @@
     var profTimer = null;
     $('set-profile').addEventListener('input', function (e) { if (!e.target.matches('input, textarea')) return; clearTimeout(profTimer); profTimer = setTimeout(saveProfile, 500); });
     $('set-profile').addEventListener('change', function (e) { if (e.target.id === 'pGstReg') saveProfile(); });
-    $('btnBizReturn').addEventListener('click', function () { saveProfile(); var to = bizReturnTo || 'quote'; this.hidden = true; bizReturnTo = null; recalc(); go(to, true); toast('Back to your quote'); });
+    $('btnBizReturn').addEventListener('click', function () { saveProfile(); var to = bizReturnTo || 'quote'; this.hidden = true; bizReturnTo = null; recalc(); if (to === 'record' && currentRecordId) openRecord(currentRecordId); else go(to, true); toast('Back to your quote'); });
     $('pGstReg').addEventListener('change', function () { $('pGstNo').disabled = !this.checked; });
     $('btnResetPrices').addEventListener('click', function () { priceOverrides = {}; save(K.prices, priceOverrides); renderPrices(); fillPalingSelect(); recalc(); toast('Prices reset to researched values'); });
     $('btnAddPaling').addEventListener('click', function () {

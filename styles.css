@@ -227,3 +227,11 @@ input[type="date"] { min-width: 0; max-width: 100%; }
 
 .saved-box { font-size: 16px; font-weight: 700; margin-top: 10px; border: 2px solid var(--ok); }
 .btn.saved-flash { background: var(--ok); border-color: var(--ok); color: #fff; }
+
+/* ---------- Invoices ---------- */
+.inv-opt { display: flex; gap: 10px; align-items: flex-start; border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+.inv-opt.sel { border-color: var(--brand); background: var(--ok-bg); }
+.inv-opt input { width: 22px; height: 22px; margin-top: 2px; flex: none; }
+.inv-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+.inv-item .inv-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+.inv-item .inv-btns .btn { padding: 8px 6px; min-height: 40px; font-size: 14px; }

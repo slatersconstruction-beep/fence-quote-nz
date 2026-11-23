@@ -22,7 +22,7 @@
     var W = 210, H = 297, M = 16, CW = W - 2 * M;
     var y = M;
     var green = [31, 81, 48];
-    pdf.setProperties({ title: 'Quote ' + latin(doc.ref) + ' - ' + latin(doc.business.tradingName), subject: 'Quote for ' + latin(doc.client.name), author: latin(doc.business.tradingName), creator: 'Fence Quote NZ' });
+    pdf.setProperties({ title: 'Quote ' + latin(doc.ref) + ' - ' + latin(doc.business.tradingName), subject: 'Quote for ' + latin(doc.client.name), author: latin(doc.business.tradingName), creator: 'Karl Quotes' });
 
     function ensure(h) { if (y + h > H - 18) { pdf.addPage(); y = M; } }
     function text(str, opts) {
@@ -187,7 +187,7 @@
     var pdf = new JsPDF({ unit: 'mm', format: 'a4', compress: true });
     var W = 210, H = 297, M = 16, CW = W - 2 * M, y = M, green = [31, 81, 48];
     var b = inv.business, title = inv.gstRegistered ? 'TAX INVOICE' : 'INVOICE';
-    pdf.setProperties({ title: title + ' ' + latin(inv.number) + ' - ' + latin(b.tradingName), author: latin(b.tradingName), creator: 'Fence Quote NZ' });
+    pdf.setProperties({ title: title + ' ' + latin(inv.number) + ' - ' + latin(b.tradingName), author: latin(b.tradingName), creator: 'Karl Quotes' });
     function ensure(h) { if (y + h > H - 18) { pdf.addPage(); y = M; } }
     function text(str, o) {
       o = o || {}; pdf.setFont('helvetica', o.bold ? 'bold' : 'normal'); pdf.setFontSize(o.size || 10); pdf.setTextColor.apply(pdf, o.color || [27, 31, 28]);

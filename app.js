@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '2.3.0';
+  var APP_VERSION = '2.4.0';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -80,12 +80,18 @@
       jobs: { fence: true, deck: false }, deck: clone(D.deckDefaults)
     };
   }
+  var OLD_BOARDS = { 'bn-0199671': 'dk-90x32', 'bn-0199668': 'dk-90x32', 'm10-392348': 'dk-90x32', 'bn-0333819': 'dk-140x32', 'bn-0333820': 'dk-140x32', 'm10-392349': 'dk-140x32' };
   // older quotes (before decks) are fence-only
   function normDraft(d) {
     d.jobs = d.jobs || { fence: true, deck: false };
     d.deck = d.deck || {};
     d.deck.input = Object.assign(clone(D.deckDefaults.input), d.deck.input || {});
     d.deck.options = Object.assign(clone(D.deckDefaults.options), d.deck.options || {});
+    var o = d.deck.options;
+    // v2.4: decking is picked by size, not by product
+    if (OLD_BOARDS[o.boardId]) o.boardId = OLD_BOARDS[o.boardId];
+    // v2.4: "within 500 m of the sea" tick box became the exposure zone question
+    if (o.coastal != null) { if (o.coastal === true && o.zone === 'BC') o.zone = 'D'; delete o.coastal; }
     return d;
   }
   if (!draft || !draft.ref) draft = newDraft();
@@ -112,8 +118,10 @@
       nails: applyOv(D.nails), railFix: applyOv(D.railFix), concrete: applyOv(D.concrete),
       deck: {
         piles: D.deck.piles.map(applyOv), joists: D.deck.joists.map(applyOv), bearers: D.deck.bearers.map(applyOv),
-        boards: D.deck.boards.concat(customBoards).map(applyOv), screws: applyOv(D.deck.screws), hangers: D.deck.hangers.map(applyOv),
-        ties: applyOv(D.deck.ties), wireDogs: applyOv(D.deck.wireDogs), bolts: applyOv(D.deck.bolts), nails: applyOv(D.deck.nails), concrete: applyOv(D.concrete)
+        boards: D.deck.boards.concat(customBoards).map(applyOv), screwSizes: D.deck.screwSizes.map(applyOv), screwSizes316: D.deck.screwSizes316.map(applyOv), hangers: D.deck.hangers.map(applyOv),
+        ties: applyOv(D.deck.ties), wireDogs: applyOv(D.deck.wireDogs), bolts: applyOv(D.deck.bolts), nails: applyOv(D.deck.nails), concrete: applyOv(D.concrete),
+        ss: { hangers: D.deck.ss.hangers.map(applyOv), ties: applyOv(D.deck.ss.ties), wireDogs: applyOv(D.deck.ss.wireDogs), bolts: applyOv(D.deck.ss.bolts), nails: applyOv(D.deck.ss.nails) },
+        zones: D.deckZones
       }
     };
   }
@@ -132,13 +140,18 @@
     return parts.join('\n\n');
   }
   function sizeName(n) { return String(n || '').replace(/ \(green\)/, '').replace(/ SG8/, ''); }
+  function deckBoardName(b) {
+    var mat = String(draft.deck.options.material || '').trim();
+    var base = String(b.name || '').replace(/ decking$/, '');
+    return mat ? base + ' ' + mat + ' decking' : b.name;
+  }
   function deckScope(t) {
-    var s = t.summary;
+    var s = t.summary, fixWord = s.zone && s.zone.fix === 'galv' ? 'galvanised' : 'stainless steel';
     return 'Supply and build a ' + s.length.toFixed(1) + ' m × ' + s.width.toFixed(1) + ' m timber deck (' + s.area.toFixed(1) + ' m²), about ' + Math.round(s.height * 1000) + ' mm high, ' + (s.attached ? 'attached to the house' : 'free-standing') + ', on level ground:\n' +
       '- ' + s.pileCount + ' x 125 × 125 H5 timber piles set in concrete, ' + s.bearerRows + ' row' + (s.bearerRows > 1 ? 's' : '') + ' of ' + sizeName(s.bearer.name.replace(/ bearer$/, '')) + ' bearers\n' +
-      '- ' + sizeName(s.joist.name.replace(/ framing/, '')) + ' joists at ' + s.centres + ' mm centres' + (s.attached ? ', on galvanised joist hangers from a stringer bolted to the house' : '') + '\n' +
-      '- Decking: ' + s.board.name + ', ' + s.gapMm + ' mm gaps, fixed with stainless steel screws\n' +
-      '- Galvanised structural fixings (joist ties, wire dogs, nails)\n' +
+      '- ' + sizeName(s.joist.name.replace(/ framing/, '')) + ' joists at ' + s.centres + ' mm centres' + (s.attached ? ', on ' + fixWord + ' joist hangers from a stringer bolted to the house' : '') + '\n' +
+      '- Decking: ' + deckBoardName(s.board) + ', ' + s.gapMm + ' mm gaps, fixed with ' + (s.zone && s.zone.screws === '316' ? '316' : '304') + ' stainless steel screws\n' +
+      '- ' + (fixWord === 'stainless steel' ? 'Stainless steel' : 'Galvanised') + ' structural fixings (joist ties, wire dogs, nails' + (s.attached ? ', bolts' : '') + ')' + (s.zone && s.zone.screws === '316' ? ' to suit a coastal site' : '') + '\n' +
       '- Tidy up and removal of our offcuts and packaging';
   }
   function fenceScope(t) {
@@ -181,20 +194,41 @@
     var di = draft.deck.input, o = draft.deck.options;
     $('jobFence').checked = !!draft.jobs.fence; $('jobDeck').checked = !!draft.jobs.deck;
     $('dLength').value = di.length; $('dWidth').value = di.width; $('dHeight').value = di.height;
-    $('dAttached').checked = o.attached !== false; $('dCentres').value = String(o.joistCentres);
-    $('dCant').value = o.cantilever; $('dGap').value = o.boardGapMm; $('dEmbed').value = Math.round(o.pileEmbed * 1000); $('dHoleDia').value = Math.round(o.pileHoleDia * 1000);
+    $('dAttached').checked = o.attached !== false; $('dCentres').value = String(o.joistCentres); $('dZone').value = o.zone || 'BC'; $('dMaterial').value = o.material || '';
+    $('dCant').value = o.cantilever; $('dGap').value = o.boardGapMm === 'auto' ? '' : o.boardGapMm; $('dEmbed').value = Math.round(o.pileEmbed * 1000); $('dHoleDia').value = Math.round(o.pileHoleDia * 1000);
     $('dBoardWaste').value = o.boardWastePct; $('dTimberWaste').value = o.timberWastePct; $('dFixWaste').value = o.fixingWastePct; $('dScrews').value = o.screwsPerCrossing;
-    $('dTies').value = o.tiesPerCrossing; $('dDogs').value = o.wireDogsPerPile; $('dBolts').value = o.boltCentres; $('dFront').checked = o.frontBoundary !== false; $('dCoastal').checked = !!o.coastal;
+    $('dTies').value = o.tiesPerCrossing; $('dDogs').value = o.wireDogsPerPile; $('dBolts').value = o.boltCentres; $('dFront').checked = o.frontBoundary !== false;
     fillDeckSelects();
   }
   function fillDeckSelects() {
     var dc = catalogue().deck, o = draft.deck.options;
-    $('dBoard').innerHTML = dc.boards.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(b.name) + ' – ' + money(b.price) + '/m' + (b.supplier ? ' · ' + esc(b.supplier) : '') + '</option>'; }).join('');
+    $('dBoard').innerHTML = dc.boards.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(b.name.replace(/ (composite )?decking$/, '')) + ' mm' + (b.composite ? ' composite' : '') + ' – ' + money(b.price) + '/m' + (b.overridden ? ' (yours)' : b.status === 'guide' ? ' (guide)' : '') + '</option>'; }).join('');
     $('dBoard').value = dc.boards.some(function (b) { return b.id === o.boardId; }) ? o.boardId : dc.boards[0].id;
+    $('dZone').innerHTML = D.deckZones.map(function (z) { return '<option value="' + esc(z.id) + '">' + esc(z.label) + '</option>'; }).join('');
+    $('dZone').value = D.deckZones.some(function (z) { return z.id === o.zone; }) ? o.zone : D.deckZones[0].id;
+    var zz = D.deckZones.filter(function (z) { return z.id === $('dZone').value; })[0];
+    $('dZoneHelp').textContent = zz ? zz.help : '';
+    fillBoardPrice();
     $('dJoist').innerHTML = '<option value="auto">Auto (best price)</option>' + dc.joists.map(function (j) { return '<option value="' + esc(j.id) + '">' + esc(j.depthMm + ' × ' + j.widthMm) + '</option>'; }).join('');
     $('dJoist').value = dc.joists.some(function (j) { return j.id === o.joistId; }) ? o.joistId : 'auto';
     $('dBearer').innerHTML = '<option value="auto">Auto (best price)</option>' + dc.bearers.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(b.size === '140x90' ? '2/140 × 45 (nailed)' : b.size.replace('x', ' × ')) + '</option>'; }).join('');
     $('dBearer').value = dc.bearers.some(function (b) { return b.id === o.bearerId; }) ? o.bearerId : 'auto';
+  }
+  // "Your price" for the chosen decking size: per metre, or per board of a given length (saved as per metre)
+  function fillBoardPrice() {
+    var dc = catalogue().deck, id = $('dBoard').value, b = dc.boards.filter(function (x) { return x.id === id; })[0];
+    if (!b) return;
+    var per = $('dbPer').value, len = num($('dbLen').value, 0);
+    $('dbLenWrap').hidden = per !== 'board';
+    $('dbPrice').value = per === 'board' && len > 0 ? (Number(b.price) * len).toFixed(2) : Number(b.price).toFixed(2);
+    $('dbSupplier').value = b.supplier || '';
+    $('dbInfo').innerHTML = statusTag(b) + ' ' + (b.overridden ? 'Your price ' + money(b.price) + '/m (guide ' + money(b.researchedPrice) + '/m).' : esc(b.note || '')) + ' <span class="muted">' + (b.thicknessMm || '?') + ' mm thick: joists ' + (b.maxCentres || 450) + ' mm apart max · gap ' + (b.gapMm || 4) + ' mm.</span>';
+  }
+  function saveBoardPrice() {
+    var id = $('dBoard').value, v = num($('dbPrice').value, NaN), per = $('dbPer').value, len = num($('dbLen').value, 0);
+    if (!(v >= 0)) return;
+    if (per === 'board') { if (!(len > 0)) { toast('Enter the board length to work out the price per metre'); return; } v = Math.round(v / len * 100) / 100; }
+    setOverride(id, 'price', v); fillDeckSelects(); recalc(); toast('✓ Price saved: ' + money(v) + ' per metre');
   }
   function fillPalingSelect() {
     var cat = catalogue(), sel = $('selPaling');
@@ -210,7 +244,7 @@
   }
   function statusTag(item) {
     if (item.overridden) return '<span class="tag override">your price</span>';
-    return '<span class="tag ' + item.status + '">' + (item.status === 'verified' ? 'checked ' + esc(item.checked) : item.status === 'derived' ? 'derived ' + esc(item.checked) : 'estimate – confirm') + '</span>';
+    return '<span class="tag ' + item.status + '">' + (item.status === 'verified' ? 'checked ' + esc(item.checked) : item.status === 'derived' ? 'derived ' + esc(item.checked) : item.status === 'guide' ? 'guide price – type yours' : 'estimate – confirm') + '</span>';
   }
   function lineHTML(l) {
     var lm = l.unitLabel === 'm';
@@ -726,11 +760,14 @@
     var cat = catalogue();
     var dc = cat.deck;
     return [['#', 'Fences']].concat(cat.palings.map(function (x) { return ['Paling', x]; }), cat.posts.map(function (x) { return ['Post', x]; }), cat.rails.map(function (x) { return ['Rail', x]; }), [['Paling nails', cat.nails], ['Rail fixings', cat.railFix], ['Concrete (fences & decks)', cat.concrete]],
-      [['#', 'Decks']], dc.boards.map(function (x) { return ['Decking', x]; }), dc.joists.map(function (x) { return ['Joist timber', x]; }), dc.bearers.map(function (x) { return ['Bearer', x]; }), dc.piles.map(function (x) { return ['Pile', x]; }),
-      [['Decking screws', dc.screws]], dc.hangers.map(function (x) { return ['Joist hanger', x]; }), [['Joist ties', dc.ties], ['Wire dogs', dc.wireDogs], ['Stringer bolts', dc.bolts], ['Deck nails', dc.nails]]);
+      [['#', 'Decking (by size – any timber)']], dc.boards.map(function (x) { return ['Decking', x]; }),
+      [['#', 'Deck framing']], dc.joists.map(function (x) { return ['Joist timber', x]; }), dc.bearers.map(function (x) { return ['Bearer', x]; }), dc.piles.map(function (x) { return ['Pile', x]; }),
+      [['#', 'Decking screws']], dc.screwSizes.map(function (x) { return ['304 screws', x]; }), dc.screwSizes316.map(function (x) { return ['316 screws (coastal)', x]; }),
+      [['#', 'Stainless deck fixings (open decks, coastal)']], dc.ss.hangers.map(function (x) { return ['Joist hanger', x]; }), [['Joist ties', dc.ss.ties], ['Wire dogs', dc.ss.wireDogs], ['Stringer bolts', dc.ss.bolts], ['Deck nails', dc.ss.nails]],
+      [['#', 'Galvanised deck fixings (covered inland decks)']], dc.hangers.map(function (x) { return ['Joist hanger', x]; }), [['Joist ties', dc.ties], ['Wire dogs', dc.wireDogs], ['Stringer bolts', dc.bolts], ['Deck nails', dc.nails]]);
   }
   function renderPrices() {
-    $('priceIntro').innerHTML = 'Bunnings NZ and Mitre 10 NZ public retail prices, <b>GST-inclusive</b>, checked ' + esc(D.priceCheckedLabel) + '. <span class="tag verified">checked</span> read from the store website. <span class="tag derived">derived</span> worked out from a checked price (e.g. a 6 m length ÷ 6 = price per metre). <span class="tag estimate">estimate</span> not sold online: ask your supplier and type the price. You can also change the supplier name. Your prices are saved on this phone.';
+    $('priceIntro').innerHTML = 'Bunnings NZ and Mitre 10 NZ public retail prices, <b>GST-inclusive</b>, checked ' + esc(D.priceCheckedLabel) + '. <span class="tag verified">checked</span> read from the store website. <span class="tag derived">derived</span> worked out from a checked price (e.g. a 6 m length ÷ 6 = price per metre). <span class="tag estimate">estimate</span> not sold online: ask your supplier and type the price. <span class="tag guide">guide price</span> decking sizes: one common timber is used as a guide – type the price for the timber you are using. You can also change the supplier name. Your prices are saved on this phone.';
     $('priceList').innerHTML = allPriceItems().map(function (pair) {
       var kind = pair[0], it = pair[1];
       if (kind === '#') return '<h3 class="price-group">' + esc(it) + '</h3>';
@@ -1026,15 +1063,20 @@
     $('jobFence').addEventListener('change', jobChange); $('jobDeck').addEventListener('change', jobChange);
     [['dLength', 'length'], ['dWidth', 'width'], ['dHeight', 'height']].forEach(function (p) { $(p[0]).addEventListener('input', function () { draft.deck.input[p[1]] = this.value; recalc(); }); });
     $('dAttached').addEventListener('change', function () { draft.deck.options.attached = this.checked; recalc(); });
-    $('dBoard').addEventListener('change', function () { draft.deck.options.boardId = this.value; recalc(); });
-    $('dCentres').addEventListener('change', function () { draft.deck.options.joistCentres = Number(this.value); recalc(); });
+    $('dBoard').addEventListener('change', function () { draft.deck.options.boardId = this.value; fillBoardPrice(); recalc(); });
+    $('dCentres').addEventListener('change', function () { draft.deck.options.joistCentres = this.value === 'auto' ? 'auto' : Number(this.value); recalc(); });
+    $('dZone').addEventListener('change', function () { draft.deck.options.zone = this.value; fillDeckSelects(); recalc(); });
+    $('dMaterial').addEventListener('input', function () { draft.deck.options.material = this.value; recalc(); });
+    $('dbPer').addEventListener('change', fillBoardPrice);
+    $('dbLen').addEventListener('input', function () { if ($('dbPer').value === 'board') fillBoardPrice(); });
+    $('dbPrice').addEventListener('change', saveBoardPrice);
+    $('dbSupplier').addEventListener('change', function () { var bid = $('dBoard').value, so = priceOverrides[bid] || {}; if (this.value.trim()) so.supplier = this.value.trim(); else delete so.supplier; priceOverrides[bid] = so; save(K.prices, priceOverrides); fillDeckSelects(); recalc(); toast('Supplier saved'); });
     $('dJoist').addEventListener('change', function () { draft.deck.options.joistId = this.value; recalc(); });
     $('dBearer').addEventListener('change', function () { draft.deck.options.bearerId = this.value; recalc(); });
     var dOptMap = { dCant: ['cantilever', 1], dGap: ['boardGapMm', 1], dEmbed: ['pileEmbed', 0.001], dHoleDia: ['pileHoleDia', 0.001], dBoardWaste: ['boardWastePct', 1], dTimberWaste: ['timberWastePct', 1], dFixWaste: ['fixingWastePct', 1], dScrews: ['screwsPerCrossing', 1], dTies: ['tiesPerCrossing', 1], dDogs: ['wireDogsPerPile', 1], dBolts: ['boltCentres', 1] };
     Object.keys(dOptMap).forEach(function (id) { $(id).addEventListener('input', function () { var m = dOptMap[id]; draft.deck.options[m[0]] = this.value === '' ? D.deckDefaults.options[m[0]] : num(this.value, 0) * m[1]; recalc(); }); });
     $('dFront').addEventListener('change', function () { draft.deck.options.frontBoundary = this.checked; recalc(); });
-    $('dCoastal').addEventListener('change', function () { draft.deck.options.coastal = this.checked; recalc(); });
-    $('btnResetDeckOpts').addEventListener('click', function () { var keep = { attached: draft.deck.options.attached, boardId: draft.deck.options.boardId, joistCentres: draft.deck.options.joistCentres, joistId: draft.deck.options.joistId, bearerId: draft.deck.options.bearerId }; draft.deck.options = Object.assign(clone(D.deckDefaults.options), keep); fillDeckInputs(); recalc(); toast('Deck options reset'); });
+    $('btnResetDeckOpts').addEventListener('click', function () { var keep = { attached: draft.deck.options.attached, boardId: draft.deck.options.boardId, joistCentres: draft.deck.options.joistCentres, joistId: draft.deck.options.joistId, bearerId: draft.deck.options.bearerId, zone: draft.deck.options.zone, material: draft.deck.options.material }; draft.deck.options = Object.assign(clone(D.deckDefaults.options), keep); fillDeckInputs(); recalc(); toast('Deck options reset'); });
     $('btnShowNewBoard').addEventListener('click', function () { $('newBoardBox').hidden = false; this.hidden = true; setTimeout(function () { $('dnbName').focus(); }, 30); });
     $('btnCancelNewBoard').addEventListener('click', function () { $('newBoardBox').hidden = true; $('btnShowNewBoard').hidden = false; });
     $('btnSaveNewBoard').addEventListener('click', function () {
@@ -1042,7 +1084,7 @@
       if (!(w >= 40 && w <= 300)) { toast('Not saved: enter the board width in mm (40–300)'); return; }
       if (!(pr >= 0)) { toast('Not saved: enter the price per metre'); return; }
       var id = 'cb' + Date.now();
-      customBoards.push({ id: id, name: ($('dnbName').value.trim() || (w + ' × ' + th + ' decking')), widthMm: w, thicknessMm: th, price: pr, unit: 'lm', supplier: $('dnbSupplier').value.trim() || 'Custom', item: $('dnbItem').value.trim(), url: '', status: 'verified', checked: dateLabel(todayISO()), note: 'Added by you.' });
+      customBoards.push({ id: id, name: ($('dnbName').value.trim() || (w + ' × ' + th + ' decking')), widthMm: w, thicknessMm: th, price: pr, unit: 'lm', maxCentres: th >= 30 ? 600 : 450, gapMm: w >= 120 ? 6 : 4, supplier: $('dnbSupplier').value.trim() || 'Custom', item: $('dnbItem').value.trim(), url: '', status: 'verified', checked: dateLabel(todayISO()), note: 'Added by you.' });
       save(K.boards, customBoards); draft.deck.options.boardId = id;
       ['dnbName', 'dnbWidth', 'dnbThick', 'dnbPrice', 'dnbSupplier', 'dnbItem'].forEach(function (x) { $(x).value = ''; });
       $('newBoardBox').hidden = true; $('btnShowNewBoard').hidden = false; fillDeckSelects(); recalc(); toast('✓ New decking board saved and selected');

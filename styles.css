@@ -71,6 +71,7 @@ details[open].card > summary h2::after { content: " ▴"; }
 .tag.verified { background: var(--ok-bg); color: var(--ok); }
 .tag.derived { background: var(--info-bg); color: var(--info); }
 .tag.estimate { background: var(--warn-bg); color: var(--warn); }
+.tag.guide { background: var(--info-bg); color: var(--info); }
 .tag.override { background: var(--info-bg); color: var(--info); }
 .tag.private-tag { background: var(--private-bg); color: var(--warn); border: 1px dashed var(--warn); }
 .alert { border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; font-size: 14px; }

@@ -133,15 +133,40 @@ FQ_DATA.deck = {
     { id: 'bu-bearer-2x140x45', name: '2/140 × 45 H3.2 nailed together (as 140 × 90 bearer)', size: '140x90', depthMm: 140, widthMm: 90, item: '0616262 ×2', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/140-x-45mm-sg8-h3-2-treated-green-radiata-timber-framing-6m_p0616262', price: 23.64, unit: 'lm', lengths: [2.4, 3.0, 3.6, 4.2, 4.8, 5.4, 6.0], status: 'derived', checked: '24 Nov 2026', note: 'Two 140×45 at $11.82/m. Spans taken as a solid 140×90 bearer: confirm a nailed-up bearer is OK for your job.' },
     { id: 'est-bearer-190x70', name: '190 × 70 H3.2 bearer', size: '190x70', depthMm: 190, widthMm: 70, item: '', supplier: 'Timber merchant', url: '', price: 28.05, unit: 'lm', lengths: [2.4, 3.0, 3.6, 4.2, 4.8, 5.4, 6.0], status: 'estimate', checked: '24 Nov 2026', note: 'ESTIMATE – not sold online at Bunnings or Mitre 10. Worked out from 190×45 at $18.02/m × 70/45. Ask your merchant and enter the price.' }
   ],
+  /* Decking is chosen by SIZE only. The species/material doesn't change the structure: board thickness sets the
+     max joist spacing, width sets the gap, thickness sets the screw length. The tradie types the price per metre
+     (or per board) for whatever material the client wants. Guide prices = cheapest checked online, 24 Nov 2026. */
   boards: [
-    { id: 'bn-0199671', name: '88 × 32 H3.2 pine decking, premium smooth', widthMm: 88, thicknessMm: 32, item: '0199671', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/88-x-32mm-h3-2-premium-smooth-decking-random-lengths_p0199671', price: 6.65, unit: 'lm', status: 'verified', checked: '24 Nov 2026', note: 'Verified: Bunnings NZ $6.65 per metre, random lengths.' },
-    { id: 'bn-0199668', name: '88 × 32 H3.2 pine decking, merchant grade', widthMm: 88, thicknessMm: 32, item: '0199668', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/88-x-32mm-h3-2-wet-smooth-random-merch-decking_p0199668', price: 4.14, unit: 'lm', status: 'verified', checked: '24 Nov 2026', note: 'Verified: Bunnings NZ $4.14 per metre. Merchant grade has more knots and wane.' },
-    { id: 'bn-0333819', name: '138 × 32 H3.2 pine decking, merchant grade smooth', widthMm: 138, thicknessMm: 32, item: '0333819', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/138-x-32mm-h3-2-wet-smooth-random-merch-decking_p0333819', price: 5.42, unit: 'lm', status: 'verified', checked: '24 Nov 2026', note: 'Verified: Bunnings NZ $5.42 per metre.' },
-    { id: 'bn-0333820', name: '138 × 32 H3.2 pine decking, merchant grade griptread', widthMm: 138, thicknessMm: 32, item: '0333820', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/138-x-32mm-h3-2-merch-griptread-decking_p0333820', price: 5.69, unit: 'lm', status: 'verified', checked: '24 Nov 2026', note: 'Verified: Bunnings NZ $5.69 per metre.' },
-    { id: 'm10-392348', name: '90 × 32 radiata decking, premium smooth', widthMm: 90, thicknessMm: 32, item: '392348', supplier: 'Mitre 10 NZ', url: 'https://www.mitre10.co.nz/shop/x/p/392348', price: 7.61, unit: 'lm', status: 'verified', checked: '24 Nov 2026', note: 'Verified: Mitre 10 NZ $7.61 per metre (griptread same price).' },
-    { id: 'm10-392349', name: '140 × 32 radiata decking, premium smooth', widthMm: 140, thicknessMm: 32, item: '392349', supplier: 'Mitre 10 NZ', url: 'https://www.mitre10.co.nz/shop/x/p/392349', price: 11.20, unit: 'lm', status: 'verified', checked: '24 Nov 2026', note: 'Verified: Mitre 10 NZ $11.20 per metre (griptread same price).' }
+    { id: 'dk-90x19', name: '90 × 19 decking', widthMm: 90, thicknessMm: 19, maxCentres: 450, gapMm: 4, price: 5.59, unit: 'lm', supplier: 'Bunnings NZ', item: '0200172', url: 'https://www.bunnings.co.nz/90-x-19mm-kwila-pre-oiled-select-grade-smooth-decking-random-lengths_p0200172', status: 'guide', checked: '24 Nov 2026', note: 'Guide price: 90×19 kwila, Bunnings NZ $5.59/m. Pine, vitex etc. are the same size – type the price for the material you are using.' },
+    { id: 'dk-140x19', name: '140 × 19 decking', widthMm: 140, thicknessMm: 19, maxCentres: 450, gapMm: 6, price: 11.68, unit: 'lm', supplier: 'Bunnings NZ', item: '0501893', url: 'https://www.bunnings.co.nz/140-x-19mm-heavy-hopea-pre-oiled-decking-random-lengths_p0501893', status: 'guide', checked: '24 Nov 2026', note: 'Guide price: 140×19 hopea, Bunnings NZ $11.68/m (kwila $14.04/m).' },
+    { id: 'dk-88x21', name: '88 × 21 decking', widthMm: 88, thicknessMm: 21, maxCentres: 450, gapMm: 4, price: 2.65, unit: 'lm', supplier: 'Bunnings NZ', item: '0333818', url: 'https://www.bunnings.co.nz/88-x-21mm-h3-2-wet-smooth-random-merch-decking_p0333818', status: 'guide', checked: '24 Nov 2026', note: 'Guide price: 88×21 H3.2 pine merchant grade, Bunnings NZ $2.65/m (clear griptread $6.47/m).' },
+    { id: 'dk-137x23', name: '137 × 23 composite decking', widthMm: 137, thicknessMm: 23, maxCentres: 450, gapMm: 5, composite: true, price: 16.48, unit: 'lm', supplier: 'Bunnings NZ', item: '0267428', url: 'https://www.bunnings.co.nz/ekodeck-classic-137-x-23mm-5-4m-greystone-composite-decking_p0267428', status: 'guide', checked: '24 Nov 2026', note: 'Guide price: Ekodeck Classic 5.4 m $89 = $16.48/m. Composite joist spacing and clips: follow the maker (usually 400–450 mm).' },
+    { id: 'dk-90x32', name: '90 × 32 decking', widthMm: 88, thicknessMm: 32, maxCentres: 600, gapMm: 4, price: 6.65, unit: 'lm', supplier: 'Bunnings NZ', item: '0199671', url: 'https://www.bunnings.co.nz/88-x-32mm-h3-2-premium-smooth-decking-random-lengths_p0199671', status: 'guide', checked: '24 Nov 2026', note: 'Guide price: 88×32 H3.2 pine premium, Bunnings NZ $6.65/m (merchant grade $4.14/m; Mitre 10 premium $7.61/m). Boards are 88 mm wide.' },
+    { id: 'dk-140x32', name: '140 × 32 decking', widthMm: 138, thicknessMm: 32, maxCentres: 600, gapMm: 6, price: 11.20, unit: 'lm', supplier: 'Mitre 10 NZ', item: '392349', url: 'https://www.mitre10.co.nz/shop/x/p/392349', status: 'guide', checked: '24 Nov 2026', note: 'Guide price: 140×32 pine premium, Mitre 10 NZ $11.20/m (Bunnings 138×32 merchant grade $5.42/m). Boards are 138 mm wide.' }
   ],
-  screws: { id: 'bn-0658849', name: 'Titan 10g × 65 mm 304 stainless decking screws, 500 pack', item: '0658849', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/titan-10g-x-65mm-wide-head-decking-screw-304-stainless-steel-500-pack_p0658849', price: 84.95, unit: 'pack', perPack: 500, status: 'verified', checked: '24 Nov 2026', note: 'Verified. Within 500 m of the sea use 316 stainless (Bunnings 0379643, 500 pack $116).' },
+  // decking screws by board thickness: aim for about 40 mm into the joist (PlaceMakers decking guides)
+  screwSizes: [
+    { maxThicknessMm: 25, id: 'bn-0658849', name: 'Titan 10g × 65 mm 304 stainless decking screws, 500 pack', item: '0658849', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/titan-10g-x-65mm-wide-head-decking-screw-304-stainless-steel-500-pack_p0658849', price: 84.95, unit: 'pack', perPack: 500, status: 'verified', checked: '24 Nov 2026', note: 'For 19–25 mm boards. PlaceMakers guides say 10g × 65 stainless, 2 per joist. Near the sea use 316 (Bunnings 0379643, $116).' },
+    { maxThicknessMm: 99, id: 'bn-1002775', name: 'Titan 10g × 75 mm 304 stainless decking screws, 500 pack', item: '1002775', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/titan-10g-x-75mm-304-stainless-steel-slim-head-decking-screw-500-pack_p1002775', price: 99.00, unit: 'pack', perPack: 500, status: 'verified', checked: '24 Nov 2026', note: 'For 32 mm boards: 75 mm gives about 40 mm into the joist (a 65 mm screw only gets 33 mm).' }
+  ],
+  screwSizes316: [
+    { maxThicknessMm: 25, id: 'bn-0379643', name: 'Decking screws 10g × 65 mm 316 stainless, 500 pack', item: '0379643', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/decking-screw-65-x-10g-316-stainless-steel-500-pack_p0379643', price: 116.00, unit: 'pack', perPack: 500, status: 'verified', checked: '24 Nov 2026', note: 'Verified. 316 grade for sites near the coast.' },
+    { maxThicknessMm: 99, id: 'est-ss316-10g75', name: 'Decking screws 10g × 75 mm 316 stainless, 500 pack', item: '', supplier: 'Fastener supplier', url: '', price: 135.00, unit: 'pack', perPack: 500, status: 'estimate', checked: '24 Nov 2026', note: 'ESTIMATE – 10g × 75 in 316 is not sold online at Bunnings or Mitre 10 in a 500 pack. Worked out from the 304 price ($99) × the 316/304 price difference at 65 mm. Ask your supplier.' }
+  ],
+  // Fixing sets. NZS 3604 (as summarised by BRANZ "Durability and fixings"): structural fixings that are EXPOSED
+  // (an open deck) need 304 stainless in zones B and C, and 304 stainless (316 where looks matter) in zone D.
+  // Galvanised is only for sheltered places, e.g. a deck under a roof inland.
+  ss: {
+    hangers: [
+      { id: 'bn-0386029', name: 'Lumberlok 47 × 90 joist hanger, stainless', fitsMm: 90, item: '0386029', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/lumberlok-joist-hanger-47x90mm-stainless-steel-ssjh4790_p0386029', price: 6.33, unit: 'each', status: 'verified', checked: '24 Nov 2026', note: 'Verified.' },
+      { id: 'bn-0266139', name: 'Lumberlok 47 × 120 joist hanger, stainless', fitsMm: 140, item: '0266139', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/lumberlok-47-x-120mm-stainless-steel-joist-hanger_p0266139', price: 7.93, unit: 'each', status: 'verified', checked: '24 Nov 2026', note: 'Verified. Used for 140 joists (no 47 × 140 listed online) – check with the maker.' },
+      { id: 'bn-0386042', name: 'Lumberlok 47 × 190 joist hanger, stainless', fitsMm: 240, item: '0386042', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/lumberlok-joist-hanger-47x190mm-stainless-steel_p0386042', price: 12.10, unit: 'each', status: 'verified', checked: '24 Nov 2026', note: 'Verified. For 190 joists (also used for 240 – check).' }
+    ],
+    ties: { id: 'm10-279659', name: 'Lumberlok cyclone tie 400 mm, stainless (joist to bearer)', item: '279659', supplier: 'Mitre 10 NZ', url: 'https://www.mitre10.co.nz/shop/x/p/279659', price: 5.57, unit: 'each', status: 'verified', checked: '24 Nov 2026', note: 'Verified.' },
+    wireDogs: { id: 'bn-0640237', name: 'Lumberlok wire dogs, stainless, 10 pack (bearer to pile)', item: '0640237', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/lumberlok-wire-dog-right-hand-stainless-steel-10pk-sswdrh-r_p0640237', price: 20.12, unit: 'pack', perPack: 10, status: 'verified', checked: '24 Nov 2026', note: 'Verified.' },
+    bolts: { id: 'bn-0236711', name: 'Zenith M12 × 200 316 stainless coach bolt & nut (stringer)', item: '0236711', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/zenith-m12-x-200mm-316-stainless-steel-coach-head-bolt-and-nut_p0236711', price: 7.06, unit: 'each', status: 'verified', checked: '24 Nov 2026', note: 'Verified.' },
+    nails: { id: 'bn-0482808', name: 'NZ Nails 100 × 4 mm 316 stainless flat head nails, 500 g', item: '0482808', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/nz-nails-100-x-4mm-316-stainless-steel-flat-head-500g-nails_p0482808', price: 35.59, unit: 'pack', perPack: 40, status: 'verified', checked: '24 Nov 2026', note: 'Price verified. Nails per 500 g not stated: ~40 is my estimate (≈12 g each).' }
+  },
   hangers: [
     { id: 'bn-0818094', name: 'Lumberlok 47 × 90 joist hanger, hot-dip galv', fitsMm: 90, item: '0818094', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/lumberlok-joist-hanger-47x90mm-hot-dip-galvanised-jh4790dg_p0818094', price: 5.23, unit: 'each', status: 'verified', checked: '24 Nov 2026', note: 'Verified.' },
     { id: 'bn-0818112', name: 'Lumberlok 47 × 120 joist hanger, hot-dip galv', fitsMm: 140, item: '0818112', supplier: 'Bunnings NZ', url: 'https://www.bunnings.co.nz/lumberlok-joist-hanger-47x120mm-hot-dip-galvanised-jh47120dg_p0818112', price: 5.73, unit: 'each', status: 'verified', checked: '24 Nov 2026', note: 'Verified. Used for 140 joists (no 47×140 hanger listed online) – check with the hanger maker.' },
@@ -164,22 +189,38 @@ FQ_DATA.deckRules = {
   bearerSpan: { '140x70': [[1.3, 2.3], [1.65, 1.4]], '140x90': [[1.3, 3.0], [1.65, 1.8], [2.0, 1.2]], '190x70': [[1.3, 4.3], [1.65, 2.7], [2.0, 1.8]] }
 };
 
+/* Site exposure (NZS 3604 Section 4 zones, as summarised by BRANZ and the MiTek zone map). */
+FQ_DATA.deckZones = [
+  { id: 'BC', label: 'Inland – more than 500 m from the sea (zone B or C)', fix: 'ss', screws: '304', help: 'Open decks are "exposed": NZS 3604 wants 304 stainless structural fixings even inland.' },
+  { id: 'D', label: 'Coastal – within 500 m of the sea, or an offshore island (zone D)', fix: 'ss', screws: '316', help: 'Stainless fixings; 316 screws, bolts and nails (316 is recommended where looks matter).' },
+  { id: 'E', label: 'Sea spray right on the beach, or a geothermal hot spot', fix: 'ss', screws: '316', help: 'Priced as coastal (316), but get specific advice on fixings for this site.' },
+  { id: 'covered', label: 'Inland deck under a roof (sheltered)', fix: 'galv', screws: '304', help: 'Sheltered from rain inland: hot-dip galvanised hangers, ties and bolts are allowed. Decking screws stay stainless.' }
+];
+
 FQ_DATA.deckDefaults = {
   input: { length: '', width: '', height: 0.6 },
   options: {
-    attached: true, joistCentres: 450, joistId: 'auto', bearerId: 'auto', boardId: 'bn-0199671', boardGapMm: 4,
+    attached: true, joistCentres: 'auto', joistId: 'auto', bearerId: 'auto', boardId: 'dk-90x32', boardGapMm: 'auto', material: '', zone: 'BC',
     cantilever: 0, boardWastePct: 10, timberWastePct: 0, fixingWastePct: 10, screwsPerCrossing: 2, tiesPerCrossing: 1,
-    pileEmbed: 0.45, pileHoleDia: 0.3, wireDogsPerPile: 2, boltCentres: 0.8, frontBoundary: true, coastal: false
+    pileEmbed: 0.45, pileHoleDia: 0.3, wireDogsPerPile: 2, boltCentres: 0.8, frontBoundary: true
   }
 };
 
 FQ_DATA.deckSources = [
+  { kind: 'guide', title: 'PlaceMakers – decking guides (radiata pine, kwila, vitex)', url: 'https://www.placemakers.co.nz/medias/sys_master/root/h08/h7a/10218289856542/decking-guides-radiata-pine/decking-guides-radiata-pine.pdf',
+    summary: '90×19 and 140×19 boards: joists at 450 mm centres max; for 32 mm decking up to 600 mm. Gaps 4 mm (90 wide) and 6 mm (140 wide). Two 10g × 65 stainless screws per joist, at least 40 mm into the joist; pre-drill hardwoods.' },
+  { kind: 'guide', title: 'BRANZ – Slatted decking', url: 'https://www.branz.co.nz/design-build/articles/slatted-decking',
+    summary: 'Boards typically 90×19 or 90×32. 600 mm centres maximum for 32 mm boards; composite generally 400–450 mm per maker. 3–6 mm gaps; two fixings per board at each joist.' },
   { kind: 'rule', title: 'BRANZ – Designing a deck (NZS 3604 spans, footings, stringers, gaps)', url: 'https://www.branz.co.nz/design-build/articles/designing-a-deck',
     summary: 'Ordinary pile footings 260 mm dia × 200 mm deep minimum; braced piles 400 mm dia × 450 mm deep. Joists 140×45 cantilever 1.15 m and 190×45 1.6 m at 400 centres. 3–6 mm gaps between boards; 12 mm gap from stringer and cladding to decking for drainage.' },
   { kind: 'rule', title: 'Northpine – SG8/SG10 span tables (NZS 3604 Table 7.1(b), 7.2, 6.4(b))', url: 'https://archipro.co.nz/assets/MemberUploads/Span-Tables-SG8-SG10-2023-booklet-updated-Aug-2023.pdf',
     summary: 'Wet-in-service SG8 joists at 400/450/600 centres: 140×45 2.50/2.35/2.05 m; 190×45 3.40/3.20/2.75 m; 240×45 4.30/4.05/3.50 m. Bearers by span and loaded dimension (used by the deck calculator).' },
   { kind: 'rule', title: 'BRANZ – Free-standing timber decks (piles and bracing)', url: 'https://www.branz.co.nz/design-build/articles/free-standing-timber-decks',
     summary: 'Cantilevered piles up to 1.2 m above cleared ground; anchor piles 600 mm; braced piles up to 3.0 m. Bracing demand about 15 BU/m² (zone 3, soil E). Bearers H3.2, jointed only over piles.' },
+  { kind: 'rule', title: 'BRANZ – Durability and fixings (NZS 3604 exposure zones)', url: 'https://www.branz.co.nz/design-build/articles/durability-and-fixings',
+    summary: 'Zone D = within 500 m of the coast and all offshore islands (see the NZS 3604 / MiTek zone map). Exposed structural fixings: 304 stainless in zones B and C; zone D: 304 stainless, 316 where appearance matters. Galvanised only where sheltered. Connections to H5 piles within 600 mm of the ground: 304 stainless.' },
+  { kind: 'rule', title: 'MiTek – NZS 3604 exposure zone map', url: 'https://www.placemakers.co.nz/medias/sys_master/root/hab/hd5/10202660929566/mitek-exposure-zone-map/mitek-exposure-zone-map.pdf',
+    summary: 'Map of zones B, C and D for both islands. Zone D includes all offshore islands and the area within 500 m of the coastline.' },
   { kind: 'rule', title: 'MBIE – Exempt building work: decks, platforms and bridges', url: 'https://www.building.govt.nz/projects-and-consents/planning-a-successful-build/scope-and-design/check-if-you-need-consents/building-work-that-doesnt-need-a-building-consent/',
     summary: 'A deck from which you cannot fall more than 1.5 m (even if it collapses) does not need building consent, but must still meet the Building Code. Building Code F4 needs a barrier where someone could fall 1 m or more. (Not read automatically here – check the page.)' }
 ];
@@ -189,8 +230,10 @@ FQ_DATA.deckAssumptions = [
   'Boards run along the length. Joists run out from the house at the joist spacing you pick (450 mm default). Joist and bearer sizes are picked for the lowest material cost that meets the NZS 3604 span tables.',
   'Attached deck: a stringer (same size as the joists) is bolted to the house with M12 bolts at 0.8 m centres and the joists hang off it in joist hangers. Free-standing deck: an extra row of bearers and piles replaces the stringer.',
   'Piles: 125×125 H5 ordinary piles in 300 mm holes, 450 mm in the ground, concreted. Pile height = deck height − board − joist − bearer. No braced or anchor piles are counted: add them if the deck needs bracing.',
-  'Decking: rows = width ÷ (board width + gap), bought by the metre + waste. 2 stainless screws per board at each joist.',
-  'Fixings: 1 cyclone tie per joist/bearer crossing, 2 wire dogs per pile, 2 skew nails per crossing plus 3 nails per joist end at the boundary joist.',
+  'Decking is picked by size only (the timber type does not change the structure). Max joist spacing: 450 mm for 19–25 mm boards and composite, 600 mm for 32 mm boards (PlaceMakers, BRANZ, South Pacific Timber guides). On Auto the app tries each allowed spacing and uses the cheapest overall.',
+  'Board gap: 4 mm for 90 mm boards, 6 mm for 140 mm boards (PlaceMakers), 5 mm composite. Rows = width ÷ (board width + gap), bought by the metre + waste.',
+  'Decking screws: 2 stainless screws per board at each joist, about 40 mm into the joist: 10g × 65 for 19–25 mm boards, 10g × 75 for 32 mm boards. Composite: use the maker\'s clips (screws priced as a guide).',
+  'Fixings: 1 cyclone tie per joist/bearer crossing, 2 wire dogs per pile, 2 skew nails per crossing plus 3 nails per joist end at the boundary joist. Grade follows the site question: stainless for open decks (316 screws, bolts and nails near the coast), galvanised only for a covered deck inland.',
   'Timber lengths are rounded up to stock lengths (2.4 to 6.0 m); long runs are joined over a bearer or pile.',
   'No steps, handrails, barriers, stairs, staining or ramps. Add them as extras.'
 ];

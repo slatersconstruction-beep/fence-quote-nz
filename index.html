@@ -114,11 +114,26 @@
       </div>
       <label class="field">Height: top of the deck above the ground (m)<input id="dHeight" type="number" inputmode="decimal" step="0.05" min="0" placeholder="0.6"></label>
       <label class="field check"><input id="dAttached" type="checkbox"> Attached to the house (stringer bolted to the house)</label>
-      <label class="field">Decking boards<select id="dBoard"></select></label>
-      <button type="button" class="btn small ghost" id="btnShowNewBoard">+ Add a new decking board (size, price, supplier)</button>
+      <label class="field">How close is the site to the sea?<select id="dZone"></select></label>
+      <p class="small muted" id="dZoneHelp"></p>
+      <label class="field">Decking board size (width × thickness, mm)<select id="dBoard"></select></label>
+      <div class="disc-offer">
+        <div class="small" id="dbInfo"></div>
+        <div class="grid2 mt">
+          <label class="field">Your price incl GST ($)<input id="dbPrice" type="number" inputmode="decimal" step="0.01" min="0"></label>
+          <label class="field">Price is<select id="dbPer"><option value="m">per metre</option><option value="board">per board</option></select></label>
+        </div>
+        <label class="field" id="dbLenWrap" hidden>Board length (m)<input id="dbLen" type="number" inputmode="decimal" step="0.3" min="0.6" placeholder="5.4"></label>
+        <div class="grid2">
+          <label class="field">Supplier<input id="dbSupplier" type="text" list="supplierList" placeholder="e.g. PlaceMakers"></label>
+          <label class="field">Timber / material (for the quote)<input id="dMaterial" type="text" placeholder="e.g. kwila, H3.2 pine"></label>
+        </div>
+        <p class="small muted">Any timber the same size uses the same joist spacing and screws. Type the price for the timber you are using – it is saved for future quotes.</p>
+      </div>
+      <button type="button" class="btn small ghost" id="btnShowNewBoard">+ Add another board size</button>
       <div id="newBoardBox" class="disc-offer mt" hidden>
-        <b>New decking board</b> <span class="small muted">– check the price online or by phone, then enter it here. It's saved for future quotes.</span>
-        <label class="field mt">Description<input id="dnbName" type="text" placeholder="e.g. 90 × 19 kwila decking"></label>
+        <b>New board size</b> <span class="small muted">– check the price online or by phone, then enter it here. It's saved for future quotes.</span>
+        <label class="field mt">Description<input id="dnbName" type="text" placeholder="e.g. 65 × 19 decking"></label>
         <div class="grid2">
           <label class="field">Width (mm)<input id="dnbWidth" type="number" inputmode="numeric" placeholder="90"></label>
           <label class="field">Thickness (mm)<input id="dnbThick" type="number" inputmode="numeric" placeholder="32"></label>
@@ -131,7 +146,7 @@
         <div class="np-actions"><button type="button" class="btn back-btn" id="btnCancelNewBoard">Cancel</button><button type="button" class="btn primary" id="btnSaveNewBoard">Save &amp; use this board</button></div>
       </div>
       <div class="grid2">
-        <label class="field">Joist spacing<select id="dCentres"><option value="400">400 mm</option><option value="450">450 mm</option><option value="600">600 mm</option></select></label>
+        <label class="field">Joist spacing<select id="dCentres"><option value="auto">Auto (from board size)</option><option value="400">400 mm</option><option value="450">450 mm</option><option value="600">600 mm</option></select></label>
         <label class="field">Joist size<select id="dJoist"></select></label>
         <label class="field">Bearer size<select id="dBearer"></select></label>
       </div>
@@ -152,7 +167,7 @@
       <summary><h2>Deck options</h2><span class="muted small">overhang, piles, gaps, waste, fixings</span></summary>
       <div class="grid2">
         <label class="field">Joist overhang past last bearer (m)<input id="dCant" type="number" inputmode="decimal" step="0.05" min="0"></label>
-        <label class="field">Gap between boards (mm)<input id="dGap" type="number" inputmode="numeric" step="1" min="0"></label>
+        <label class="field">Gap between boards (mm)<input id="dGap" type="number" inputmode="numeric" step="1" min="0" placeholder="auto"></label>
         <label class="field">Pile depth in ground (mm)<input id="dEmbed" type="number" inputmode="numeric" step="50" min="200"></label>
         <label class="field">Pile hole diameter (mm)<input id="dHoleDia" type="number" inputmode="numeric" step="10" min="200"></label>
         <label class="field">Board waste (%)<input id="dBoardWaste" type="number" inputmode="numeric" step="1" min="0"></label>
@@ -164,7 +179,6 @@
         <label class="field">Stringer bolt centres (m)<input id="dBolts" type="number" inputmode="decimal" step="0.1" min="0.3"></label>
       </div>
       <label class="field check"><input id="dFront" type="checkbox"> Boundary joist across the outside edge</label>
-      <label class="field check"><input id="dCoastal" type="checkbox"> Within 500 m of the sea (stainless fixings)</label>
       <button class="btn ghost small" id="btnResetDeckOpts" type="button">Reset deck options to defaults</button>
     </details>
     </div><!-- /deckSection -->

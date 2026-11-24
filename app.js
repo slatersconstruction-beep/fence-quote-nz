@@ -1,7 +1,7 @@
 /* Fence Quote NZ — UI and storage */
 (function () {
   'use strict';
-  var APP_VERSION = '2.4.0';
+  var APP_VERSION = '2.4.1';
   function fmtPct(n) { return (Math.round(n * 100) / 100) + '%'; }
   var TZ = 'Pacific/Auckland';
   var D = window.FQ_DATA, C = window.FQCalc, P = window.FQPdf;
@@ -92,6 +92,8 @@
     if (OLD_BOARDS[o.boardId]) o.boardId = OLD_BOARDS[o.boardId];
     // v2.4: "within 500 m of the sea" tick box became the exposure zone question
     if (o.coastal != null) { if (o.coastal === true && o.zone === 'BC') o.zone = 'D'; delete o.coastal; }
+    // v2.4.1: joist spacing was a fixed 450 mm before v2.4 – let it follow the board size now
+    if (!d.deck.ver || d.deck.ver < 2) { o.joistCentres = 'auto'; if (o.boardGapMm !== 'auto') o.boardGapMm = 'auto'; d.deck.ver = 2; }
     return d;
   }
   if (!draft || !draft.ref) draft = newDraft();
@@ -1063,7 +1065,12 @@
     $('jobFence').addEventListener('change', jobChange); $('jobDeck').addEventListener('change', jobChange);
     [['dLength', 'length'], ['dWidth', 'width'], ['dHeight', 'height']].forEach(function (p) { $(p[0]).addEventListener('input', function () { draft.deck.input[p[1]] = this.value; recalc(); }); });
     $('dAttached').addEventListener('change', function () { draft.deck.options.attached = this.checked; recalc(); });
-    $('dBoard').addEventListener('change', function () { draft.deck.options.boardId = this.value; fillBoardPrice(); recalc(); });
+    $('dBoard').addEventListener('change', function () {
+      var o = draft.deck.options; o.boardId = this.value;
+      // a new board size sets its own joist spacing and gap
+      o.joistCentres = 'auto'; o.boardGapMm = 'auto'; $('dCentres').value = 'auto'; $('dGap').value = '';
+      fillBoardPrice(); recalc();
+    });
     $('dCentres').addEventListener('change', function () { draft.deck.options.joistCentres = this.value === 'auto' ? 'auto' : Number(this.value); recalc(); });
     $('dZone').addEventListener('change', function () { draft.deck.options.zone = this.value; fillDeckSelects(); recalc(); });
     $('dMaterial').addEventListener('input', function () { draft.deck.options.material = this.value; recalc(); });

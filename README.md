@@ -34,3 +34,8 @@ Mobile-first web app for Slaters Construction: quote a straight timber paling fe
 2. Length `6` (along the house), width `4`, height `0.6`, attached ticked.
 3. Check: 12 piles, 2 rows of bearers, 15 joists at 450 centres, ~290 m of decking, screws, hangers, bolts, ties, wire dogs, nails, concrete.
 4. Carry on to Quote and Send as for a fence. The quote, PDF, email and invoice say "deck".
+
+### Decking sizes and coastal fixings (v2.4.0)
+- Decking is picked by **size** (90×19, 140×19, 88×21, 137×23 composite, 90×32, 140×32), not by timber. Prices shown are guides; type your own price per metre or per board (with the board length) and supplier. "Timber / material" goes into the quote scope.
+- Joist spacing "Auto" uses the board thickness: 19–23 mm boards 450 mm max, 32 mm boards 600 mm max. Gaps and screw length (10g×65 or 10g×75) come from the board size.
+- "How close is the site to the sea?" sets the fixings: inland open deck = stainless (304 screws), within 500 m of the sea = stainless + 316 screws, sea spray/geothermal = 316 + design flag, covered inland = galvanised.
